@@ -1,0 +1,26 @@
+{
+  "title": "PID Window Controller",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure PID Window Controller",
+        "data": {
+          "name": "Name",
+          "temp_sensor": "Indoor temperature sensor",
+          "cover_entity": "Window/cover entity",
+          "outdoor_sensor": "Outdoor temperature sensor",
+          "target_temp": "Target temperature",
+          "kp": "Kp",
+          "ki": "Ki",
+          "kd": "Kd",
+          "update_interval": "Update interval (seconds)",
+          "min_position": "Minimum cover position",
+          "max_position": "Maximum cover position",
+          "enable_outdoor_lock": "Enable outdoor limit logic",
+          "outdoor_summer_limit": "Summer outdoor limit",
+          "outdoor_lock_threshold": "Outdoor lock threshold"
+        }
+      }
+    }
+  }
+}

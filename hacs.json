@@ -1,0 +1,5 @@
+{
+  "name": "PID Window Controller",
+  "content_in_root": false,
+  "domains": ["switch", "number", "sensor", "button"]
+}
