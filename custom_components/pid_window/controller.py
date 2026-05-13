@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfTemperature
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
@@ -85,6 +86,15 @@ class PidWindowController:
         self._last_update_tick: float | None = None
         self._sample_count = 0
         self._autotune_active = False
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={("pid_window", self.entry.entry_id)},
+            name=self.entry.data.get("name", "PID Window Controller"),
+            manufacturer="OpenClaw",
+            model="PID Window Controller",
+        )
 
     async def async_start(self) -> None:
         self._unsub_interval = async_track_time_interval(

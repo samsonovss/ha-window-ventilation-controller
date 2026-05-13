@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import EntityCategory
@@ -30,12 +30,19 @@ class PidWindowSensor(SensorEntity):
         self._controller = controller
         self._key = key
         self._is_text = is_text
+        self._attr_has_entity_name = True
+        self._attr_device_info = controller.device_info
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{key}"
         self._attr_native_unit_of_measurement = unit
         self._remove_listener = controller.register_listener(self._handle_update)
-        if key == "status":
+        if key in {"status", "pid_output", "error"}:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        if key in {"current_temp", "outdoor_temp", "error"}:
+            self._attr_device_class = SensorDeviceClass.TEMPERATURE
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+        elif key == "cover_position":
+            self._attr_state_class = SensorStateClass.MEASUREMENT
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(self._remove_listener)

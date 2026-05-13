@@ -25,9 +25,11 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
 class PidWindowNumber(NumberEntity):
     _attr_mode = NumberMode.BOX
     _attr_entity_category = EntityCategory.CONFIG
+    _attr_has_entity_name = True
 
     def __init__(self, controller, entry_id: str, key: str, name: str, min_value: float, max_value: float, step: float, unit: str | None) -> None:
         self._controller = controller
+        self._attr_device_info = controller.device_info
         self._key = key
         self._attr_name = name
         self._attr_unique_id = f"{entry_id}_{key}"

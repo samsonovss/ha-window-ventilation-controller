@@ -6,7 +6,7 @@
   "dependencies": [],
   "documentation": "https://github.com/samsonovss/ha_pid_window_controller",
   "iot_class": "local_polling",
-  "integration_type": "hub",
+  "integration_type": "device",
   "loggers": ["custom_components.pid_window"],
   "quality_scale": "bronze",
   "version": "0.1.0"
