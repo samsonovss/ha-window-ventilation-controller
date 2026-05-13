@@ -13,6 +13,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
+    CONF_ADAPTIVE_OUTDOOR_FACTOR,
+    CONF_ADAPTIVE_RATE_FACTOR,
     CONF_COVER_ENTITY,
     CONF_ENABLE_OUTDOOR_LOCK,
     CONF_KD,
@@ -23,18 +25,37 @@ from .const import (
     CONF_OUTDOOR_LOCK_THRESHOLD,
     CONF_OUTDOOR_SENSOR,
     CONF_OUTDOOR_SUMMER_LIMIT,
+    CONF_PROFILE_MODE,
     CONF_TARGET_TEMP,
     CONF_TEMP_SENSOR,
+    CONF_SUMMER_KD,
+    CONF_SUMMER_KI,
+    CONF_SUMMER_KP,
     CONF_UPDATE_INTERVAL,
+    CONF_WINTER_KD,
+    CONF_WINTER_KI,
+    CONF_WINTER_KP,
     DEFAULT_KD,
+    DEFAULT_ADAPTIVE_OUTDOOR_FACTOR,
+    DEFAULT_ADAPTIVE_RATE_FACTOR,
     DEFAULT_KI,
     DEFAULT_KP,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
     DEFAULT_OUTDOOR_LOCK_THRESHOLD,
     DEFAULT_OUTDOOR_SUMMER_LIMIT,
+    DEFAULT_PROFILE_MODE,
     DEFAULT_TARGET_TEMP,
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_SUMMER_KD,
+    DEFAULT_SUMMER_KI,
+    DEFAULT_SUMMER_KP,
+    DEFAULT_WINTER_KD,
+    DEFAULT_WINTER_KI,
+    DEFAULT_WINTER_KP,
+    PROFILE_AUTO,
+    PROFILE_SUMMER,
+    PROFILE_WINTER,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +68,8 @@ class ControllerState:
     cover_position: float | None = None
     pid_output: float | None = None
     error: float | None = None
+    temperature_trend: float | None = None
+    active_profile: str = DEFAULT_PROFILE_MODE
     enabled: bool = True
     autotune_running: bool = False
     status: str = "idle"
@@ -64,10 +87,19 @@ class PidWindowController:
         self.temp_sensor = data[CONF_TEMP_SENSOR]
         self.cover_entity = data[CONF_COVER_ENTITY]
         self.outdoor_sensor = data.get(CONF_OUTDOOR_SENSOR) or options.get(CONF_OUTDOOR_SENSOR)
+        self.profile_mode = str(options.get(CONF_PROFILE_MODE, data.get(CONF_PROFILE_MODE, DEFAULT_PROFILE_MODE)))
         self.target_temp = float(options.get(CONF_TARGET_TEMP, data.get(CONF_TARGET_TEMP, DEFAULT_TARGET_TEMP)))
         self.kp = float(options.get(CONF_KP, data.get(CONF_KP, DEFAULT_KP)))
         self.ki = float(options.get(CONF_KI, data.get(CONF_KI, DEFAULT_KI)))
         self.kd = float(options.get(CONF_KD, data.get(CONF_KD, DEFAULT_KD)))
+        self.winter_kp = float(options.get(CONF_WINTER_KP, data.get(CONF_WINTER_KP, DEFAULT_WINTER_KP)))
+        self.winter_ki = float(options.get(CONF_WINTER_KI, data.get(CONF_WINTER_KI, DEFAULT_WINTER_KI)))
+        self.winter_kd = float(options.get(CONF_WINTER_KD, data.get(CONF_WINTER_KD, DEFAULT_WINTER_KD)))
+        self.summer_kp = float(options.get(CONF_SUMMER_KP, data.get(CONF_SUMMER_KP, DEFAULT_SUMMER_KP)))
+        self.summer_ki = float(options.get(CONF_SUMMER_KI, data.get(CONF_SUMMER_KI, DEFAULT_SUMMER_KI)))
+        self.summer_kd = float(options.get(CONF_SUMMER_KD, data.get(CONF_SUMMER_KD, DEFAULT_SUMMER_KD)))
+        self.adaptive_outdoor_factor = float(options.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, data.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, DEFAULT_ADAPTIVE_OUTDOOR_FACTOR)))
+        self.adaptive_rate_factor = float(options.get(CONF_ADAPTIVE_RATE_FACTOR, data.get(CONF_ADAPTIVE_RATE_FACTOR, DEFAULT_ADAPTIVE_RATE_FACTOR)))
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))
         self.min_position = int(options.get(CONF_MIN_POSITION, data.get(CONF_MIN_POSITION, DEFAULT_MIN_POSITION)))
         self.max_position = int(options.get(CONF_MAX_POSITION, data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)))
@@ -81,6 +113,7 @@ class PidWindowController:
         self._enabled = True
         self._integral = 0.0
         self._previous_error: float | None = None
+        self._last_temp: float | None = None
         self._last_position: float | None = None
         self._last_sent_position: float | None = None
         self._last_update_tick: float | None = None
@@ -162,14 +195,45 @@ class PidWindowController:
             return min(desired, 30.0)
         return desired
 
+    def _profile_from_context(self, outdoor_temp: float | None, temperature_trend: float | None) -> str:
+        if self.profile_mode in {PROFILE_WINTER, PROFILE_SUMMER}:
+            return self.profile_mode
+        if outdoor_temp is None:
+            return PROFILE_SUMMER if (temperature_trend or 0.0) > 0.2 else PROFILE_WINTER
+        if outdoor_temp >= self.outdoor_lock_threshold:
+            return PROFILE_SUMMER
+        if outdoor_temp >= self.outdoor_summer_limit:
+            return PROFILE_SUMMER
+        return PROFILE_WINTER
+
+    def _profile_gains(self, profile: str) -> tuple[float, float, float]:
+        if profile == PROFILE_SUMMER:
+            return self.summer_kp, self.summer_ki, self.summer_kd
+        return self.winter_kp, self.winter_ki, self.winter_kd
+
+    def _adaptive_multiplier(self, outdoor_temp: float | None, temperature_trend: float | None) -> float:
+        multiplier = 1.0
+        if outdoor_temp is not None:
+            # If outside is hotter than target, back off opening; if colder, allow more opening.
+            outdoor_delta = self.target_temp - outdoor_temp
+            multiplier += self.adaptive_outdoor_factor * max(-1.0, min(1.0, outdoor_delta / 10.0))
+        if temperature_trend is not None:
+            # Positive trend = room warming up, open more. Negative trend = room cooling down, open less.
+            multiplier += self.adaptive_rate_factor * max(-1.0, min(1.0, temperature_trend / 2.0))
+        return max(0.4, min(1.6, multiplier))
+
     async def _async_tick(self, _event: Event | None) -> None:
         current_temp = self._read_float(self.temp_sensor)
         outdoor_temp = self._read_float(self.outdoor_sensor) if self.outdoor_sensor else None
         cover_position = self._cover_position()
 
+        dt_hours = max(self.update_interval, 15) / 3600.0
+        temperature_trend = None if self._last_temp is None or current_temp is None else (current_temp - self._last_temp) / dt_hours
+
         self.state.current_temp = current_temp
         self.state.outdoor_temp = outdoor_temp
         self.state.cover_position = cover_position
+        self.state.temperature_trend = temperature_trend
         self.state.enabled = self._enabled
         self.state.autotune_running = self._autotune_active
 
@@ -185,11 +249,14 @@ class PidWindowController:
 
         error = current_temp - self.target_temp
         self.state.error = error
+        active_profile = self._profile_from_context(outdoor_temp, temperature_trend)
+        self.state.active_profile = active_profile
 
         # If the room is too cold, close the window fully.
         if error <= 0.0:
             self._integral = 0.0
             self._previous_error = error
+            self._last_temp = current_temp
             target_position = float(self.min_position)
             self.state.pid_output = target_position
             self.state.status = "closing"
@@ -197,22 +264,24 @@ class PidWindowController:
             self._notify()
             return
 
-        dt_hours = max(self.update_interval, 15) / 3600.0
         self._integral += error * dt_hours
         self._integral = max(-20.0, min(20.0, self._integral))
         derivative = 0.0 if self._previous_error is None else (error - self._previous_error) / dt_hours
 
-        output = self.kp * error + self.ki * self._integral + self.kd * derivative
+        kp, ki, kd = self._profile_gains(active_profile)
+        output = kp * error + ki * self._integral + kd * derivative
+        output *= self._adaptive_multiplier(outdoor_temp, temperature_trend)
         output = max(self.min_position, min(self.max_position, output))
         output = self._season_limit(outdoor_temp, output)
         output = max(self.min_position, min(self.max_position, output))
 
         self._previous_error = error
+        self._last_temp = current_temp
         self._sample_count += 1
         self._last_update_tick = self.hass.loop.time()
         self._last_position = output
         self.state.pid_output = output
-        self.state.status = "tuning" if self._autotune_active else "controlling"
+        self.state.status = "tuning" if self._autotune_active else f"controlling_{active_profile}"
         await self._set_cover_position(output)
         self._notify()
 
@@ -251,6 +320,12 @@ class PidWindowController:
         self._notify()
         await self._async_tick(None)
 
+    async def async_set_profile_mode(self, mode: str) -> None:
+        self.profile_mode = mode
+        self._async_save_option(CONF_PROFILE_MODE, mode)
+        self._notify()
+        await self._async_tick(None)
+
     async def async_set_gain(self, key: str, value: float) -> None:
         setattr(self, key, value)
         self._async_save_option(key, value)
@@ -259,8 +334,10 @@ class PidWindowController:
 
     async def async_autotune(self) -> None:
         current = self._read_float(self.temp_sensor)
+        outdoor_temp = self._read_float(self.outdoor_sensor) if self.outdoor_sensor else None
         if current is None:
             raise ValueError("Current temperature is unavailable")
+        active_profile = self._profile_from_context(outdoor_temp, None if self._last_temp is None else current - self._last_temp)
         self._autotune_active = True
         self.state.autotune_running = True
         self.state.status = "autotune_started"
@@ -268,14 +345,23 @@ class PidWindowController:
         # Conservative heuristic, safe for a window actuator.
         deviation = abs(current - self.target_temp)
         if deviation < 0.5:
-            self.kp, self.ki, self.kd = DEFAULT_KP, DEFAULT_KI, DEFAULT_KD
+            gains = (DEFAULT_KP, DEFAULT_KI, DEFAULT_KD)
         else:
-            self.kp = max(4.0, min(25.0, 18.0 / deviation))
-            self.ki = max(0.05, min(0.6, self.kp / 90.0))
-            self.kd = max(0.0, min(2.0, self.kp / 12.0))
-        self._async_save_option(CONF_KP, self.kp)
-        self._async_save_option(CONF_KI, self.ki)
-        self._async_save_option(CONF_KD, self.kd)
+            kp = max(4.0, min(25.0, 18.0 / deviation))
+            ki = max(0.05, min(0.6, kp / 90.0))
+            kd = max(0.0, min(2.0, kp / 12.0))
+            gains = (kp, ki, kd)
+        kp, ki, kd = gains
+        if active_profile == PROFILE_SUMMER:
+            self.summer_kp, self.summer_ki, self.summer_kd = kp, ki, kd
+            self._async_save_option(CONF_SUMMER_KP, kp)
+            self._async_save_option(CONF_SUMMER_KI, ki)
+            self._async_save_option(CONF_SUMMER_KD, kd)
+        else:
+            self.winter_kp, self.winter_ki, self.winter_kd = kp, ki, kd
+            self._async_save_option(CONF_WINTER_KP, kp)
+            self._async_save_option(CONF_WINTER_KI, ki)
+            self._async_save_option(CONF_WINTER_KD, kd)
         self.state.status = "autotune_finished"
         self._autotune_active = False
         self.state.autotune_running = False
