@@ -16,6 +16,8 @@ from homeassistant.helpers.event import async_track_time_interval
 from .const import (
     CONF_ADAPTIVE_OUTDOOR_FACTOR,
     CONF_ADAPTIVE_RATE_FACTOR,
+    CONF_AUTOTUNE_SAMPLE_SECONDS,
+    CONF_AUTOTUNE_STEP,
     CONF_COVER_ENTITY,
     CONF_ENABLE_OUTDOOR_LOCK,
     CONF_KD,
@@ -39,6 +41,8 @@ from .const import (
     DEFAULT_KD,
     DEFAULT_ADAPTIVE_OUTDOOR_FACTOR,
     DEFAULT_ADAPTIVE_RATE_FACTOR,
+    DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
+    DEFAULT_AUTOTUNE_STEP,
     DEFAULT_KI,
     DEFAULT_KP,
     DEFAULT_MAX_POSITION,
@@ -71,6 +75,7 @@ class ControllerState:
     error: float | None = None
     temperature_trend: float | None = None
     active_profile: str = DEFAULT_PROFILE_MODE
+    last_autotune_result: str | None = None
     enabled: bool = True
     autotune_running: bool = False
     status: str = "idle"
@@ -101,6 +106,8 @@ class PidWindowController:
         self.summer_kd = float(options.get(CONF_SUMMER_KD, data.get(CONF_SUMMER_KD, DEFAULT_SUMMER_KD)))
         self.adaptive_outdoor_factor = float(options.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, data.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, DEFAULT_ADAPTIVE_OUTDOOR_FACTOR)))
         self.adaptive_rate_factor = float(options.get(CONF_ADAPTIVE_RATE_FACTOR, data.get(CONF_ADAPTIVE_RATE_FACTOR, DEFAULT_ADAPTIVE_RATE_FACTOR)))
+        self.autotune_step = float(options.get(CONF_AUTOTUNE_STEP, data.get(CONF_AUTOTUNE_STEP, DEFAULT_AUTOTUNE_STEP)))
+        self.autotune_sample_seconds = int(options.get(CONF_AUTOTUNE_SAMPLE_SECONDS, data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)))
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))
         self.min_position = int(options.get(CONF_MIN_POSITION, data.get(CONF_MIN_POSITION, DEFAULT_MIN_POSITION)))
         self.max_position = int(options.get(CONF_MAX_POSITION, data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)))
@@ -348,6 +355,7 @@ class PidWindowController:
         outdoor_temp = self._read_float(self.outdoor_sensor) if self.outdoor_sensor else None
         if current is None:
             self.state.status = "autotune_no_temperature"
+            self.state.last_autotune_result = self.state.status
             self._notify()
             return
 
@@ -359,13 +367,17 @@ class PidWindowController:
         self._autotune_active = True
         self.state.autotune_running = True
         self.state.status = f"autotune_prepare_{active_profile}"
+        self.state.last_autotune_result = self.state.status
         self._notify()
 
-        step = 12.0
+        step = max(12.0, self.autotune_step)
         direction = 1.0 if current >= self.target_temp else -1.0
         test_position = max(self.min_position, min(self.max_position, current_position + step * direction))
         if abs(test_position - current_position) < 1.0:
+            test_position = max(self.min_position, min(self.max_position, current_position - step * direction))
+        if abs(test_position - current_position) < 1.0:
             self.state.status = "autotune_no_room_for_step"
+            self.state.last_autotune_result = self.state.status
             self._autotune_active = False
             self.state.autotune_running = False
             self._notify()
@@ -374,9 +386,10 @@ class PidWindowController:
         start_temp = current
         await self._set_cover_position(test_position)
         self.state.status = f"autotune_sampling_{active_profile}"
+        self.state.last_autotune_result = self.state.status
         self._notify()
 
-        sample_seconds = max(180, self.update_interval * 4)
+        sample_seconds = max(self.autotune_sample_seconds, self.update_interval * 4)
         start_monotonic = self.hass.loop.time()
         samples: list[float] = []
         elapsed = 0.0
@@ -387,6 +400,7 @@ class PidWindowController:
                 samples.append(now)
                 self.state.current_temp = now
                 self.state.status = f"autotune_sampling_{active_profile}_{len(samples)}"
+                self.state.last_autotune_result = self.state.status
                 self._notify()
             elapsed = self.hass.loop.time() - start_monotonic
 
@@ -408,6 +422,7 @@ class PidWindowController:
             ki = max(0.03, min(0.8, kp / max(elapsed_hours * 12.0, 8.0)))
             kd = max(0.0, min(3.0, kp * min(elapsed_hours, 0.5) / 3.0))
             self.state.status = f"autotune_done_{active_profile}"
+        self.state.last_autotune_result = self.state.status
 
         if active_profile == PROFILE_SUMMER:
             self.summer_kp, self.summer_ki, self.summer_kd = kp, ki, kd
