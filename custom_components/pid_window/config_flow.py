@@ -8,7 +8,6 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.core import callback
 from homeassistant.helpers import selector
-from homeassistant.helpers import selector
 
 from .const import (
     CONF_COVER_ENTITY,
@@ -26,6 +25,7 @@ from .const import (
     CONF_TEMP_SENSOR,
     CONF_AUTOTUNE_SAMPLE_SECONDS,
     CONF_AUTOTUNE_STEP,
+    CONF_CALIBRATION_POINTS,
     CONF_UPDATE_INTERVAL,
     DEFAULT_KD,
     DEFAULT_KI,
@@ -40,6 +40,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
     DEFAULT_AUTOTUNE_STEP,
+    DEFAULT_CALIBRATION_POINTS,
     PROFILE_AUTO,
     PROFILE_SUMMER,
     PROFILE_WINTER,
@@ -76,6 +77,7 @@ def _schema(data: dict | None = None) -> vol.Schema:
             vol.Required(CONF_AUTOTUNE_SAMPLE_SECONDS, default=data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=60, max=900, step=30, mode=selector.NumberSelectorMode.BOX)
             ),
+            vol.Optional(CONF_CALIBRATION_POINTS, default=data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)): str,
             vol.Required(CONF_KP, default=data.get(CONF_KP, DEFAULT_KP)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=50, step=0.1, mode=selector.NumberSelectorMode.BOX)
             ),

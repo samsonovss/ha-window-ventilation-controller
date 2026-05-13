@@ -18,6 +18,7 @@ from .const import (
     CONF_ADAPTIVE_RATE_FACTOR,
     CONF_AUTOTUNE_SAMPLE_SECONDS,
     CONF_AUTOTUNE_STEP,
+    CONF_CALIBRATION_POINTS,
     CONF_COVER_ENTITY,
     CONF_ENABLE_OUTDOOR_LOCK,
     CONF_KD,
@@ -43,6 +44,7 @@ from .const import (
     DEFAULT_ADAPTIVE_RATE_FACTOR,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
     DEFAULT_AUTOTUNE_STEP,
+    DEFAULT_CALIBRATION_POINTS,
     DEFAULT_KI,
     DEFAULT_KP,
     DEFAULT_MAX_POSITION,
@@ -108,6 +110,7 @@ class PidWindowController:
         self.adaptive_rate_factor = float(options.get(CONF_ADAPTIVE_RATE_FACTOR, data.get(CONF_ADAPTIVE_RATE_FACTOR, DEFAULT_ADAPTIVE_RATE_FACTOR)))
         self.autotune_step = float(options.get(CONF_AUTOTUNE_STEP, data.get(CONF_AUTOTUNE_STEP, DEFAULT_AUTOTUNE_STEP)))
         self.autotune_sample_seconds = int(options.get(CONF_AUTOTUNE_SAMPLE_SECONDS, data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)))
+        self.calibration_points_raw = str(options.get(CONF_CALIBRATION_POINTS, data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)))
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))
         self.min_position = int(options.get(CONF_MIN_POSITION, data.get(CONF_MIN_POSITION, DEFAULT_MIN_POSITION)))
         self.max_position = int(options.get(CONF_MAX_POSITION, data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)))
@@ -128,6 +131,8 @@ class PidWindowController:
         self._sample_count = 0
         self._autotune_active = False
         self._autotune_task = None
+        self._calibration_points = self._parse_calibration_points(self.calibration_points_raw)
+        self._calibration_max_cm = max((cm for _, cm in self._calibration_points), default=0.0)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -203,6 +208,56 @@ class PidWindowController:
         if outdoor_temp >= self.outdoor_summer_limit:
             return min(desired, 30.0)
         return desired
+
+    def _parse_calibration_points(self, raw: str) -> list[tuple[float, float]]:
+        points: list[tuple[float, float]] = []
+        for chunk in raw.replace("\n", ",").split(","):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            sep = ":" if ":" in chunk else "=" if "=" in chunk else None
+            if sep is None:
+                continue
+            left, right = chunk.split(sep, 1)
+            try:
+                command = float(left.strip())
+                opening_cm = float(right.strip())
+            except ValueError:
+                continue
+            points.append((command, opening_cm))
+        points.sort(key=lambda item: item[0])
+        return points
+
+    def _invert_calibration(self, desired_cm: float) -> float:
+        if not self._calibration_points or self._calibration_max_cm <= 0:
+            return desired_cm
+
+        by_cm = sorted(self._calibration_points, key=lambda item: item[1])
+        if desired_cm <= by_cm[0][1]:
+            return by_cm[0][0]
+        if desired_cm >= by_cm[-1][1]:
+            return by_cm[-1][0]
+
+        for idx in range(1, len(by_cm)):
+            left_cmd, left_cm = by_cm[idx - 1]
+            right_cmd, right_cm = by_cm[idx]
+            if desired_cm <= right_cm:
+                span = right_cm - left_cm
+                if abs(span) < 1e-6:
+                    return right_cmd
+                ratio = (desired_cm - left_cm) / span
+                return left_cmd + (right_cmd - left_cmd) * ratio
+        return by_cm[-1][0]
+
+    def _apply_calibration(self, desired_output: float) -> float:
+        if not self._calibration_points or self._calibration_max_cm <= 0:
+            return desired_output
+
+        range_width = max(1.0, float(self.max_position - self.min_position))
+        normalized = (desired_output - self.min_position) / range_width
+        normalized = max(0.0, min(1.0, normalized))
+        desired_cm = normalized * self._calibration_max_cm
+        return self._invert_calibration(desired_cm)
 
     def _profile_from_context(self, current_temp: float | None, outdoor_temp: float | None, temperature_trend: float | None) -> str:
         if self.profile_mode in {PROFILE_WINTER, PROFILE_SUMMER}:
@@ -298,11 +353,15 @@ class PidWindowController:
         await self._set_cover_position(output)
         self._notify()
 
-    async def _set_cover_position(self, position: float) -> None:
+    async def _set_cover_position(self, position: float, apply_calibration: bool = True) -> None:
         if position < self.min_position:
             position = float(self.min_position)
         if position > self.max_position:
             position = float(self.max_position)
+
+        if apply_calibration:
+            position = self._apply_calibration(position)
+            position = max(self.min_position, min(self.max_position, position))
 
         if self._last_sent_position is not None and abs(self._last_sent_position - position) < 1.0:
             return
@@ -366,7 +425,7 @@ class PidWindowController:
 
         self._autotune_active = True
         self.state.autotune_running = True
-        self.state.status = f"autotune_prepare_{active_profile}"
+        self.state.status = f"autotune_started_{active_profile}"
         self.state.last_autotune_result = self.state.status
         self._notify()
 
@@ -416,12 +475,12 @@ class PidWindowController:
 
         if not intended or effect < 0.005:
             kp, ki, kd = (self.summer_kp, self.summer_ki, self.summer_kd) if active_profile == PROFILE_SUMMER else (self.winter_kp, self.winter_ki, self.winter_kd)
-            self.state.status = f"autotune_noisy_{active_profile}"
+            self.state.status = f"autotune_finished_noisy_{active_profile}"
         else:
             kp = max(4.0, min(40.0, 1.5 / max(effect, 0.01)))
             ki = max(0.03, min(0.8, kp / max(elapsed_hours * 12.0, 8.0)))
             kd = max(0.0, min(3.0, kp * min(elapsed_hours, 0.5) / 3.0))
-            self.state.status = f"autotune_done_{active_profile}"
+            self.state.status = f"autotune_finished_{active_profile}"
         self.state.last_autotune_result = self.state.status
 
         if active_profile == PROFILE_SUMMER:
@@ -435,7 +494,7 @@ class PidWindowController:
             self._async_save_option(CONF_WINTER_KI, ki)
             self._async_save_option(CONF_WINTER_KD, kd)
 
-        await self._set_cover_position(current_position)
+        await self._set_cover_position(current_position, apply_calibration=False)
         self._autotune_active = False
         self.state.autotune_running = False
         self.state.active_profile = active_profile
