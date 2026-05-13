@@ -39,7 +39,6 @@ from .const import (
     DEFAULT_ADAPTIVE_OUTDOOR_FACTOR,
     DEFAULT_ADAPTIVE_RATE_FACTOR,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
-    DEFAULT_AUTOTUNE_STEP,
     DEFAULT_CALIBRATION_POINTS,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
@@ -99,7 +98,6 @@ class PidWindowController:
         self.summer_kd = float(options.get(CONF_SUMMER_KD, data.get(CONF_SUMMER_KD, DEFAULT_SUMMER_KD)))
         self.adaptive_outdoor_factor = float(options.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, data.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, DEFAULT_ADAPTIVE_OUTDOOR_FACTOR)))
         self.adaptive_rate_factor = float(options.get(CONF_ADAPTIVE_RATE_FACTOR, data.get(CONF_ADAPTIVE_RATE_FACTOR, DEFAULT_ADAPTIVE_RATE_FACTOR)))
-        self.autotune_step = float(options.get(CONF_AUTOTUNE_STEP, data.get(CONF_AUTOTUNE_STEP, DEFAULT_AUTOTUNE_STEP)))
         self.autotune_sample_seconds = int(options.get(CONF_AUTOTUNE_SAMPLE_SECONDS, data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)))
         self.calibration_points_raw = str(options.get(CONF_CALIBRATION_POINTS, data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)))
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))

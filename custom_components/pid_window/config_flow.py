@@ -21,7 +21,6 @@ from .const import (
     CONF_TARGET_TEMP,
     CONF_TEMP_SENSOR,
     CONF_AUTOTUNE_SAMPLE_SECONDS,
-    CONF_AUTOTUNE_STEP,
     CONF_CALIBRATION_POINTS,
     CONF_UPDATE_INTERVAL,
     DEFAULT_MAX_POSITION,
@@ -33,7 +32,6 @@ from .const import (
     DEFAULT_TARGET_TEMP,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
-    DEFAULT_AUTOTUNE_STEP,
     DEFAULT_CALIBRATION_POINTS,
     PROFILE_AUTO,
     PROFILE_SUMMER,
@@ -65,13 +63,10 @@ def _schema(data: dict | None = None) -> vol.Schema:
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
             ),
-            vol.Required(CONF_AUTOTUNE_STEP, default=data.get(CONF_AUTOTUNE_STEP, DEFAULT_AUTOTUNE_STEP)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=5, max=40, step=1, mode=selector.NumberSelectorMode.BOX)
-            ),
             vol.Required(CONF_AUTOTUNE_SAMPLE_SECONDS, default=data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=60, max=900, step=30, mode=selector.NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_CALIBRATION_POINTS, default=data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)): selector.TextSelector(
+            vol.Optional(CONF_CALIBRATION_POINTS, default=data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)): selector.TextSelector(
                 selector.TextSelectorConfig(multiline=False)
             ),
             vol.Required(CONF_UPDATE_INTERVAL, default=data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)): selector.NumberSelector(
