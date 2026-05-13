@@ -16,9 +16,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
     controller = runtime.controller
     async_add_entities([
         PidWindowNumber(controller, entry.entry_id, "target_temp", "Target temperature", 16.0, 30.0, 0.1, UnitOfTemperature.CELSIUS),
-        PidWindowNumber(controller, entry.entry_id, "kp", "PID Kp", 0.0, 50.0, 0.1, None),
-        PidWindowNumber(controller, entry.entry_id, "ki", "PID Ki", 0.0, 5.0, 0.01, None),
-        PidWindowNumber(controller, entry.entry_id, "kd", "PID Kd", 0.0, 10.0, 0.01, None),
         PidWindowNumber(controller, entry.entry_id, "winter_kp", "Winter Kp", 0.0, 50.0, 0.1, None),
         PidWindowNumber(controller, entry.entry_id, "winter_ki", "Winter Ki", 0.0, 5.0, 0.01, None),
         PidWindowNumber(controller, entry.entry_id, "winter_kd", "Winter Kd", 0.0, 10.0, 0.01, None),

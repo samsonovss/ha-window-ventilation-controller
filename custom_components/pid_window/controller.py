@@ -21,9 +21,6 @@ from .const import (
     CONF_CALIBRATION_POINTS,
     CONF_COVER_ENTITY,
     CONF_ENABLE_OUTDOOR_LOCK,
-    CONF_KD,
-    CONF_KI,
-    CONF_KP,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
     CONF_OUTDOOR_LOCK_THRESHOLD,
@@ -39,14 +36,11 @@ from .const import (
     CONF_WINTER_KD,
     CONF_WINTER_KI,
     CONF_WINTER_KP,
-    DEFAULT_KD,
     DEFAULT_ADAPTIVE_OUTDOOR_FACTOR,
     DEFAULT_ADAPTIVE_RATE_FACTOR,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
     DEFAULT_AUTOTUNE_STEP,
     DEFAULT_CALIBRATION_POINTS,
-    DEFAULT_KI,
-    DEFAULT_KP,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
     DEFAULT_OUTDOOR_LOCK_THRESHOLD,
@@ -97,9 +91,6 @@ class PidWindowController:
         self.outdoor_sensor = data.get(CONF_OUTDOOR_SENSOR) or options.get(CONF_OUTDOOR_SENSOR)
         self.profile_mode = str(options.get(CONF_PROFILE_MODE, data.get(CONF_PROFILE_MODE, DEFAULT_PROFILE_MODE)))
         self.target_temp = float(options.get(CONF_TARGET_TEMP, data.get(CONF_TARGET_TEMP, DEFAULT_TARGET_TEMP)))
-        self.kp = float(options.get(CONF_KP, data.get(CONF_KP, DEFAULT_KP)))
-        self.ki = float(options.get(CONF_KI, data.get(CONF_KI, DEFAULT_KI)))
-        self.kd = float(options.get(CONF_KD, data.get(CONF_KD, DEFAULT_KD)))
         self.winter_kp = float(options.get(CONF_WINTER_KP, data.get(CONF_WINTER_KP, DEFAULT_WINTER_KP)))
         self.winter_ki = float(options.get(CONF_WINTER_KI, data.get(CONF_WINTER_KI, DEFAULT_WINTER_KI)))
         self.winter_kd = float(options.get(CONF_WINTER_KD, data.get(CONF_WINTER_KD, DEFAULT_WINTER_KD)))
@@ -510,11 +501,6 @@ class PidWindowController:
             self._async_save_option(CONF_WINTER_KP, kp)
             self._async_save_option(CONF_WINTER_KI, ki)
             self._async_save_option(CONF_WINTER_KD, kd)
-
-        self.kp, self.ki, self.kd = kp, ki, kd
-        self._async_save_option(CONF_KP, kp)
-        self._async_save_option(CONF_KI, ki)
-        self._async_save_option(CONF_KD, kd)
 
         await self._set_cover_position(current_position, apply_calibration=False)
         self._autotune_active = False

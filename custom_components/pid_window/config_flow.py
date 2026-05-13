@@ -12,9 +12,6 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_COVER_ENTITY,
     CONF_ENABLE_OUTDOOR_LOCK,
-    CONF_KD,
-    CONF_KI,
-    CONF_KP,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
     CONF_OUTDOOR_LOCK_THRESHOLD,
@@ -27,9 +24,6 @@ from .const import (
     CONF_AUTOTUNE_STEP,
     CONF_CALIBRATION_POINTS,
     CONF_UPDATE_INTERVAL,
-    DEFAULT_KD,
-    DEFAULT_KI,
-    DEFAULT_KP,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
     DEFAULT_NAME,
@@ -77,15 +71,8 @@ def _schema(data: dict | None = None) -> vol.Schema:
             vol.Required(CONF_AUTOTUNE_SAMPLE_SECONDS, default=data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=60, max=900, step=30, mode=selector.NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_CALIBRATION_POINTS, default=data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)): str,
-            vol.Required(CONF_KP, default=data.get(CONF_KP, DEFAULT_KP)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=50, step=0.1, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(CONF_KI, default=data.get(CONF_KI, DEFAULT_KI)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=5, step=0.01, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(CONF_KD, default=data.get(CONF_KD, DEFAULT_KD)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=10, step=0.01, mode=selector.NumberSelectorMode.BOX)
+            vol.Required(CONF_CALIBRATION_POINTS, default=data.get(CONF_CALIBRATION_POINTS, DEFAULT_CALIBRATION_POINTS)): selector.TextSelector(
+                selector.TextSelectorConfig(multiline=False)
             ),
             vol.Required(CONF_UPDATE_INTERVAL, default=data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=15, max=600, step=15, mode=selector.NumberSelectorMode.BOX)
