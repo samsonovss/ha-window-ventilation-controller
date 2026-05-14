@@ -99,7 +99,7 @@
       },
       "cooling_delta": { "name": "Cooling delta" },
       "error": { "name": "Temperature error" },
-      "current_temp": { "name": "Indoor temperature" },
+      "current_temp": { "name": "Room" },
       "outdoor_temp": { "name": "Outdoor temperature" },
       "cover_position": { "name": "Window position" },
       "pid_output": { "name": "PID output" }

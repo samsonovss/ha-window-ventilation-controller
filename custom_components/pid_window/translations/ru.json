@@ -99,7 +99,7 @@
       },
       "cooling_delta": { "name": "Разница с улицей" },
       "error": { "name": "Разница" },
-      "current_temp": { "name": "Температура" },
+      "current_temp": { "name": "Комната" },
       "outdoor_temp": { "name": "Улица" },
       "cover_position": { "name": "Окно" },
       "pid_output": { "name": "Выход PID" }

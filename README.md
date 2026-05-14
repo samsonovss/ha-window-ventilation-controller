@@ -114,7 +114,7 @@ Main controls:
 - `Cooling mode` (`disabled` / `force` / `auto`)
 - `Target temperature`
 - `Temperature error`
-- `Indoor temperature`
+- `Room`
 - `Outdoor temperature`
 - `Window position`
 - `Controller status`
