@@ -67,15 +67,16 @@ The PID calculation follows the same style as `node-red-contrib-pid`:
 
 ## Temperature deadband
 
-Temperature deadband is enabled by default.
-
 Default: `0.5 °C`
+
+Set it to `0 °C` to disable deadband.
 
 Logic:
 
 - `current_temp <= target_temp` → window moves to `Minimum cover position`
 - `target_temp < current_temp < target_temp + deadband` → window is not moved and PID integral is not accumulated
 - `current_temp >= target_temp + deadband` → PID runs normally
+- `deadband = 0` → this guard is disabled
 
 This prevents the window from constantly moving around the target temperature.
 
@@ -112,8 +113,7 @@ Main controls:
 
 - `Cooling mode` (`disabled` / `force` / `auto`)
 - `Target temperature`
-- `Enable temperature deadband`
-- `Temperature deadband` — default `0.5 °C`, range `0–2 °C`, step `0.1 °C`
+- `Temperature deadband` — default `0.5 °C`, range `0–2 °C`, step `0.1 °C`; set `0` to disable
 
 Configuration:
 
@@ -129,6 +129,7 @@ Sensors:
 
 - `Controller status`
 - `Cooling delta`
+- `Temperature error`
 - `Indoor temperature`
 - `Outdoor temperature`
 - `Window position`
@@ -138,7 +139,7 @@ Removed legacy/debug entities:
 
 - `PID Window Enabled` switch
 - `Temp sensor guard` switch
-- `Temperature error` sensor
+- `Enable temperature deadband` switch
 - `Temperature trend` sensor
 
 ## Installation

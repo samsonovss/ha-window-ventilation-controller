@@ -11,7 +11,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN, DEFAULT_KD, DEFAULT_KI, DEFAULT_KP
 from .controller import PidWindowController
 
-PLATFORMS = ["switch", "number", "sensor", "select"]
+PLATFORMS = ["number", "sensor", "select"]
 
 
 @dataclass
@@ -32,6 +32,7 @@ _OLD_ENTITY_UNIQUE_IDS = (
     "profile_mode",
     "enabled",
     "temp_sensor_guard",
+    "temp_deadband_enabled",
     "outdoor_lock_enabled",
     "outdoor_summer_limit",
     "outdoor_lock_threshold",
@@ -101,7 +102,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old profile-based PID settings and remove deprecated entities."""
     data = _migrate_pid_options(entry.data, fill_defaults=True)
     options = _migrate_pid_options(entry.options)
-    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
+    hass.config_entries.async_update_entry(entry, data=data, options=options, version=6)
 
     registry = er.async_get(hass)
     for old_key in _OLD_ENTITY_UNIQUE_IDS:

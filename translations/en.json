@@ -16,7 +16,6 @@
           "cooling_mode": "Cooling mode",
           "cooling_delta_threshold": "Cooling delta threshold",
           "cooling_delta_hysteresis": "Cooling delta hysteresis",
-          "enable_temp_deadband": "Enable temperature deadband",
           "temp_deadband": "Temperature deadband",
           "position_change_threshold": "Position change threshold",
           "update_interval": "Update interval (seconds)",

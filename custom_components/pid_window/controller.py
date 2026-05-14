@@ -20,7 +20,6 @@ from .const import (
     CONF_KI,
     CONF_KP,
     CONF_COVER_ENTITY,
-    CONF_ENABLE_TEMP_DEADBAND,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
     CONF_OUTDOOR_SENSOR,
@@ -35,7 +34,6 @@ from .const import (
     DEFAULT_KD,
     DEFAULT_KI,
     DEFAULT_KP,
-    DEFAULT_ENABLE_TEMP_DEADBAND,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
     DEFAULT_POSITION_CHANGE_THRESHOLD,
@@ -57,6 +55,7 @@ class ControllerState:
     cooling_delta: float | None = None
     cover_position: float | None = None
     pid_output: float | None = None
+    error: float | None = None
     enabled: bool = True
     status: str = "idle"
 
@@ -90,7 +89,6 @@ class PidWindowController:
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))
         self.min_position = int(options.get(CONF_MIN_POSITION, data.get(CONF_MIN_POSITION, DEFAULT_MIN_POSITION)))
         self.max_position = int(options.get(CONF_MAX_POSITION, data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)))
-        self.enable_temp_deadband = bool(options.get(CONF_ENABLE_TEMP_DEADBAND, data.get(CONF_ENABLE_TEMP_DEADBAND, DEFAULT_ENABLE_TEMP_DEADBAND)))
         self.temp_deadband = float(options.get(CONF_TEMP_DEADBAND, data.get(CONF_TEMP_DEADBAND, DEFAULT_TEMP_DEADBAND)))
         self.position_change_threshold = float(options.get(CONF_POSITION_CHANGE_THRESHOLD, data.get(CONF_POSITION_CHANGE_THRESHOLD, DEFAULT_POSITION_CHANGE_THRESHOLD)))
         self.cooling_delta_threshold = float(options.get(CONF_COOLING_DELTA_THRESHOLD, data.get(CONF_COOLING_DELTA_THRESHOLD, DEFAULT_COOLING_DELTA_THRESHOLD)))
@@ -224,6 +222,7 @@ class PidWindowController:
             return
 
         error = current_temp - self.target_temp
+        self.state.error = error
         if not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED:
             self._integral = 0.0
             self._previous_error = None
@@ -273,7 +272,7 @@ class PidWindowController:
             self._notify()
             return
 
-        if self.enable_temp_deadband and current_temp < self.target_temp + self.temp_deadband:
+        if self.temp_deadband > 0 and current_temp < self.target_temp + self.temp_deadband:
             self._previous_error = error
             self._last_temp = current_temp
             self.state.status = "deadband"
@@ -398,12 +397,6 @@ class PidWindowController:
     async def async_set_cooling_delta_hysteresis(self, value: float) -> None:
         self.cooling_delta_hysteresis = float(value)
         self._async_save_option(CONF_COOLING_DELTA_HYSTERESIS, self.cooling_delta_hysteresis)
-        self._notify()
-        await self._async_tick(None)
-
-    async def async_set_temp_deadband_enabled(self, enabled: bool) -> None:
-        self.enable_temp_deadband = bool(enabled)
-        self._async_save_option(CONF_ENABLE_TEMP_DEADBAND, self.enable_temp_deadband)
         self._notify()
         await self._async_tick(None)
 

@@ -13,7 +13,6 @@ from .const import (
     CONF_COOLING_DELTA_HYSTERESIS,
     CONF_COOLING_DELTA_THRESHOLD,
     CONF_COVER_ENTITY,
-    CONF_ENABLE_TEMP_DEADBAND,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
     CONF_OUTDOOR_SENSOR,
@@ -38,7 +37,6 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_COOLING_DELTA_HYSTERESIS,
     DEFAULT_COOLING_DELTA_THRESHOLD,
-    DEFAULT_ENABLE_TEMP_DEADBAND,
     DEFAULT_TEMP_DEADBAND,
     COOLING_MODE_AUTO,
     COOLING_MODE_DISABLED,
@@ -92,7 +90,6 @@ def _schema(data: dict | None = None) -> vol.Schema:
             vol.Required(CONF_COOLING_DELTA_HYSTERESIS, default=data.get(CONF_COOLING_DELTA_HYSTERESIS, DEFAULT_COOLING_DELTA_HYSTERESIS)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=5, step=0.5, mode=selector.NumberSelectorMode.SLIDER)
             ),
-            vol.Required(CONF_ENABLE_TEMP_DEADBAND, default=data.get(CONF_ENABLE_TEMP_DEADBAND, DEFAULT_ENABLE_TEMP_DEADBAND)): selector.BooleanSelector(),
             vol.Required(CONF_TEMP_DEADBAND, default=data.get(CONF_TEMP_DEADBAND, DEFAULT_TEMP_DEADBAND)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=2, step=0.1, mode=selector.NumberSelectorMode.SLIDER)
             ),
@@ -113,7 +110,7 @@ def _schema(data: dict | None = None) -> vol.Schema:
 
 
 class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 5
+    VERSION = 6
 
     async def async_step_user(self, user_input=None):
         errors = {}

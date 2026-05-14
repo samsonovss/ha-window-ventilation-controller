@@ -17,6 +17,7 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
     sensors = [
         PidWindowSensor(controller, entry.entry_id, "status", "Controller status", None, is_text=True),
         PidWindowSensor(controller, entry.entry_id, "cooling_delta", "Cooling delta", UnitOfTemperature.CELSIUS),
+        PidWindowSensor(controller, entry.entry_id, "error", "Temperature error", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "current_temp", "Indoor temperature", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "outdoor_temp", "Outdoor temperature", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "cover_position", "Window position", "%"),
@@ -36,9 +37,9 @@ class PidWindowSensor(SensorEntity):
         self._attr_unique_id = f"{entry_id}_{key}"
         self._attr_native_unit_of_measurement = unit
         self._remove_listener = controller.register_listener(self._handle_update)
-        if key in {"status", "pid_output"}:
+        if key in {"status", "pid_output", "error"}:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        if key in {"current_temp", "outdoor_temp", "cooling_delta"}:
+        if key in {"current_temp", "outdoor_temp", "cooling_delta", "error"}:
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif key == "cover_position":
@@ -55,6 +56,8 @@ class PidWindowSensor(SensorEntity):
     def available(self) -> bool:
         if self._key == "cooling_delta":
             return self._controller.state.cooling_delta is not None
+        if self._key == "error":
+            return self._controller.state.error is not None
         return True
 
     @property
