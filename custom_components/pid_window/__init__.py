@@ -72,6 +72,22 @@ def _migrate_pid_options(values: dict, *, fill_defaults: bool = False) -> dict:
     if "kd" not in migrated and (fill_defaults or "winter_kd" in values):
         migrated["kd"] = values.get("winter_kd", DEFAULT_KD)
 
+    # v5 changed PID semantics to node-red-contrib-pid style:
+    # kp = proportional band, ki = integral time seconds, kd = derivative time seconds.
+    # Previous tiny ki/kd gain values are not meaningful as seconds.
+    try:
+        old_ki = float(migrated.get("ki", DEFAULT_KI))
+        if 0 < old_ki < 10:
+            migrated["ki"] = DEFAULT_KI
+    except (TypeError, ValueError):
+        migrated["ki"] = DEFAULT_KI
+    try:
+        old_kd = float(migrated.get("kd", DEFAULT_KD))
+        if 0 < old_kd < 10:
+            migrated["kd"] = DEFAULT_KD
+    except (TypeError, ValueError):
+        migrated["kd"] = DEFAULT_KD
+
     if migrated.get("cooling_mode") not in {"disabled", "force", "auto"}:
         if fill_defaults or "cooling_mode" in migrated or "profile_mode" in values:
             migrated["cooling_mode"] = "auto"
@@ -85,7 +101,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old profile-based PID settings and remove deprecated entities."""
     data = _migrate_pid_options(entry.data, fill_defaults=True)
     options = _migrate_pid_options(entry.options)
-    hass.config_entries.async_update_entry(entry, data=data, options=options, version=4)
+    hass.config_entries.async_update_entry(entry, data=data, options=options, version=5)
 
     registry = er.async_get(hass)
     for old_key in _OLD_ENTITY_UNIQUE_IDS:

@@ -10,7 +10,7 @@ The integration is designed for cooling a room with outside air: it reads indoor
 - Indoor temperature sensor selection
 - Controlled window/cover entity selection
 - Optional outdoor temperature sensor for automatic cooling permission
-- One common PID tuning set: `PID Kp`, `PID Ki`, `PID Kd`
+- Node-RED-style PID tuning: proportional band, integral time, derivative time
 - Cooling modes: `disabled`, `force`, `auto`
 - Cooling delta sensor: `current_temp - outdoor_temp`
 - Cooling delta threshold with hysteresis
@@ -34,7 +34,7 @@ PID runs using indoor temperature only.
 
 - outdoor temperature is not required
 - cooling delta is not used to block PID
-- common `PID Kp / Ki / Kd` values are used
+- common PID tuning values are used
 - `Controller status = cooling` while PID is regulating
 
 ### `auto`
@@ -53,6 +53,17 @@ If the outdoor sensor is unavailable in `auto` mode:
 - PID is blocked
 - window is moved to `Minimum cover position`
 - `Controller status = outdoor_sensor_unavailable`
+
+
+## PID behavior
+
+The PID calculation follows the same style as `node-red-contrib-pid`:
+
+- `Proportional band` is the temperature range that maps the output from 0% to 100%.
+- `Integral time` is in seconds. A larger value makes the integral correction slower.
+- `Derivative time` is in seconds. Set it to `0` to disable derivative action.
+- For cooling, the Node-RED output is inverted, so a room temperature above target opens the window more.
+- There is no extra boost or adaptive multiplier; the cover position comes only from PID output and min/max limits.
 
 ## Temperature deadband
 
@@ -90,6 +101,7 @@ Possible values:
 - `temp_sensor_unavailable` — indoor temperature sensor is unavailable
 - `cover_unavailable` — controlled cover entity is unavailable
 - `idle` — no cooling action is currently required
+- `integral_locked` — integral accumulation is temporarily locked to avoid wind-up
 - `error` — unexpected controller update error
 
 ## Settings / entities
@@ -105,9 +117,9 @@ Main controls:
 
 Configuration:
 
-- `PID Kp`
-- `PID Ki`
-- `PID Kd`
+- `Proportional band` — Node-RED-style proportional band in °C; smaller means more aggressive
+- `Integral time` — Node-RED-style integral time in seconds; larger means slower integral action
+- `Derivative time` — Node-RED-style derivative time in seconds; `0` disables derivative action
 - `Cooling delta threshold` — default `8 °C`, range `3–20 °C`, step `0.5 °C`
 - `Cooling delta hysteresis` — default `1 °C`, range `0–5 °C`, step `0.5 °C`
 - `Position change threshold` — default `1%`, range `0–10%`, step `0.5%`

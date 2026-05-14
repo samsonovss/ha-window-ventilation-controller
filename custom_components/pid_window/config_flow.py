@@ -75,10 +75,10 @@ def _schema(data: dict | None = None) -> vol.Schema:
                 selector.NumberSelectorConfig(min=0, max=50, step=0.1, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(CONF_KI, default=data.get(CONF_KI, data.get("winter_ki", DEFAULT_KI))): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=5, step=0.01, mode=selector.NumberSelectorMode.BOX)
+                selector.NumberSelectorConfig(min=0, max=7200, step=30, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(CONF_KD, default=data.get(CONF_KD, data.get("winter_kd", DEFAULT_KD))): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=10, step=0.01, mode=selector.NumberSelectorMode.BOX)
+                selector.NumberSelectorConfig(min=0, max=1800, step=30, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Required(CONF_COOLING_MODE, default=_cooling_mode_default(data)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
@@ -113,7 +113,7 @@ def _schema(data: dict | None = None) -> vol.Schema:
 
 
 class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 4
+    VERSION = 5
 
     async def async_step_user(self, user_input=None):
         errors = {}

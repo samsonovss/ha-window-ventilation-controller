@@ -108,7 +108,7 @@ class PidWindowController:
         self._last_update_tick: float | None = None
         self._sample_count = 0
         self._cooling_pid_allowed = False
-        self._no_effect_count = 0
+        self._last_power = 0.0
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -204,8 +204,6 @@ class PidWindowController:
         cover_available = self._cover_available()
         cover_position = self._cover_position() if cover_available else None
 
-        dt_hours = max(self.update_interval, 15) / 3600.0
-
         self.state.current_temp = current_temp
         self.state.outdoor_temp = outdoor_temp
         self.state.cooling_delta = cooling_delta
@@ -282,31 +280,60 @@ class PidWindowController:
             self._notify()
             return
 
-        self._integral += error * dt_hours
-        self._integral = max(-20.0, min(20.0, self._integral))
-        derivative = 0.0 if self._previous_error is None else (error - self._previous_error) / dt_hours
+        now = self.hass.loop.time()
+        delta_seconds = max(self.update_interval, 1)
+        if self._last_update_tick is not None:
+            delta_seconds = max(0.0, now - self._last_update_tick)
 
-        kp, ki, kd = self._pid_gains()
-        output = kp * error + ki * self._integral + kd * derivative
-        output = max(self.min_position, min(self.max_position, output))
+        prop_band, integral_time, derivative_time = self._pid_gains()
+        range_width = max(1.0, float(self.max_position - self.min_position))
+        integral_locked = False
 
-        # If the temperature is not moving for several cycles, nudge the window open a bit more.
-        temp_delta = None if self._last_temp is None else current_temp - self._last_temp
-        if error > 0.0 and temp_delta is not None and abs(temp_delta) < 0.05:
-            self._no_effect_count = min(self._no_effect_count + 1, 6)
+        if prop_band <= 0:
+            if error > 0:
+                power = 1.0
+            elif error < 0:
+                power = 0.0
+            else:
+                power = self._last_power
         else:
-            self._no_effect_count = 0
+            derivative = 0.0
 
-        if self._no_effect_count >= 2:
-            output = min(self.max_position, output + min(20.0, self._no_effect_count * 5.0))
+            if self._previous_error is None or self._last_update_tick is None:
+                # Same idea as node-red-contrib-pid integral_default=0.5: at setpoint, output starts at 50%.
+                self._integral = 0.0
+            elif delta_seconds <= 0 or delta_seconds > max(self.update_interval * 4, self.update_interval + 60):
+                derivative = 0.0
+                integral_locked = True
+            else:
+                derivative = derivative_time * (error - self._previous_error) / delta_seconds
+                half_band = prop_band / 2.0
+                if abs(error + self._integral) < half_band:
+                    if integral_time <= 0:
+                        self._integral = (1.0 if error > 0 else -1.0 if error < 0 else 0.0) * half_band
+                    else:
+                        self._integral += error * delta_seconds / integral_time
+                else:
+                    integral_locked = True
+
+                self._integral = max(-half_band, min(half_band, self._integral))
+
+            # Cooling form of node-red-contrib-pid: Node-RED heating output is inverted for cooling.
+            # power is 0..1, then mapped to min/max cover position.
+            power = 0.5 + ((error + self._integral + derivative) / prop_band)
+
+        power = max(0.0, min(1.0, power))
+        output = self.min_position + power * range_width
+        output = max(self.min_position, min(self.max_position, output))
 
         self._previous_error = error
         self._last_temp = current_temp
         self._sample_count += 1
-        self._last_update_tick = self.hass.loop.time()
+        self._last_update_tick = now
+        self._last_power = power
         self._last_position = output
         self.state.pid_output = output
-        self.state.status = "cooling"
+        self.state.status = "integral_locked" if integral_locked else "cooling"
         await self._set_cover_position(output)
         self._notify()
 

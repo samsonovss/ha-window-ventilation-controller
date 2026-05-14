@@ -20,9 +20,9 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
         PidWindowNumber(controller, entry.entry_id, "cooling_delta_threshold", "Cooling delta threshold", 3.0, 20.0, 0.5, UnitOfTemperature.CELSIUS),
         PidWindowNumber(controller, entry.entry_id, "cooling_delta_hysteresis", "Cooling delta hysteresis", 0.0, 5.0, 0.5, UnitOfTemperature.CELSIUS),
         PidWindowNumber(controller, entry.entry_id, "position_change_threshold", "Position change threshold", 0.0, 10.0, 0.5, "%"),
-        PidWindowNumber(controller, entry.entry_id, "kp", "PID Kp", 0.0, 50.0, 0.1, None),
-        PidWindowNumber(controller, entry.entry_id, "ki", "PID Ki", 0.0, 5.0, 0.01, None),
-        PidWindowNumber(controller, entry.entry_id, "kd", "PID Kd", 0.0, 10.0, 0.01, None),
+        PidWindowNumber(controller, entry.entry_id, "kp", "Proportional band", 0.0, 50.0, 0.1, UnitOfTemperature.CELSIUS),
+        PidWindowNumber(controller, entry.entry_id, "ki", "Integral time", 0.0, 7200.0, 30.0, "s"),
+        PidWindowNumber(controller, entry.entry_id, "kd", "Derivative time", 0.0, 1800.0, 30.0, "s"),
         PidWindowNumber(controller, entry.entry_id, "update_interval", "Update interval", 15.0, 600.0, 15.0, None),
     ])
 
