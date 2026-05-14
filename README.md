@@ -1,56 +1,172 @@
 # PID Window Controller
 
-Custom Home Assistant integration for controlling a window/cover by PID.
+Home Assistant custom integration for controlling a motorized window/cover with PID.
+
+The integration is designed for cooling a room with outside air: it reads indoor temperature, optionally reads outdoor temperature, and moves a `cover` entity between 0–100% to keep the room near the target temperature.
 
 ## Features
 
-- Select an indoor temperature sensor in the UI
-- Select the controlled cover/window in the UI
-- Optional outdoor temperature sensor
-- PID control of cover position from 0–100%
-- Adjustable target temperature
-- Separate summer/winter PID coefficients
-- Optional summer/winter logic based on outdoor temperature
-- Autotune with a real stepped window test
-- Optional per-device calibration for non-linear actuator travel
+- UI setup from Home Assistant Devices & services
+- Indoor temperature sensor selection
+- Controlled window/cover entity selection
+- Optional outdoor temperature sensor for automatic cooling permission
+- One common PID tuning set: `PID Kp`, `PID Ki`, `PID Kd`
+- Cooling modes: `disabled`, `force`, `auto`
+- Cooling delta sensor: `current_temp - outdoor_temp`
+- Cooling delta threshold with hysteresis
+- Temperature deadband to avoid unnecessary movement near target
+- Position change threshold to avoid tiny cover updates
+- Controller status sensor for debugging/automation
+- Optional actuator calibration curve
+- Autotune button with a real stepped window test
 
-## Settings
+## Cooling modes
 
-Available as entities in the **Settings** section:
+### `disabled`
 
+The controller is disabled.
+
+- PID does not run
+- window is moved to `Minimum cover position`
+- `Controller status = disabled`
+
+### `force`
+
+PID runs using indoor temperature only.
+
+- outdoor temperature is not required
+- cooling delta is not used to block PID
+- common `PID Kp / Ki / Kd` values are used
+- `Controller status = cooling` while PID is regulating
+
+### `auto`
+
+PID runs only when outside air can cool the room.
+
+- outdoor temperature sensor is required
+- `Cooling delta = current_temp - outdoor_temp`
+- PID is allowed when `Cooling delta >= Cooling delta threshold`
+- PID is blocked when `Cooling delta <= threshold - hysteresis`
+- between those two values, the previous allowed/blocked state is kept
+
+If the outdoor sensor is unavailable in `auto` mode:
+
+- `Cooling delta` becomes unavailable
+- PID is blocked
+- window is moved to `Minimum cover position`
+- `Controller status = outdoor_sensor_unavailable`
+
+## Temperature deadband
+
+Temperature deadband is enabled by default.
+
+Default: `0.5 °C`
+
+Logic:
+
+- `current_temp <= target_temp` → window moves to `Minimum cover position`
+- `target_temp < current_temp < target_temp + deadband` → window is not moved and PID integral is not accumulated
+- `current_temp >= target_temp + deadband` → PID runs normally
+
+This prevents the window from constantly moving around the target temperature.
+
+## Position change threshold
+
+Default: `1%`
+
+The integration sends `cover.set_cover_position` only when the new calculated position differs from the last sent position by at least the configured threshold.
+
+This prevents noisy PID output from spamming tiny 1% cover movements.
+
+## Controller status
+
+The `Controller status` sensor shows the current controller state.
+
+Possible values:
+
+- `disabled` — cooling mode is disabled, window is kept at minimum position
+- `cooling` — PID is active and regulating the window
+- `deadband` — temperature is inside the deadband, window is not moved
+- `auto_blocked_by_delta` — auto mode is active, but cooling delta is below the allowed threshold
+- `outdoor_sensor_unavailable` — outdoor sensor is unavailable in auto mode
+- `temp_sensor_unavailable` — indoor temperature sensor is unavailable
+- `cover_unavailable` — controlled cover entity is unavailable
+- `idle` — no cooling action is currently required
+- `error` — unexpected controller update error
+
+## Settings / entities
+
+Configuration entities exposed by the integration:
+
+- `Cooling mode` (`disabled` / `force` / `auto`)
 - `Target temperature`
-- `PID Profile Mode` (`auto` / `winter` / `summer`)
-- `Winter Kp / Ki / Kd`
-- `Summer Kp / Ki / Kd`
+- `PID Kp`
+- `PID Ki`
+- `PID Kd`
+- `Cooling delta threshold` — default `8 °C`, range `3–20 °C`, step `0.5 °C`
+- `Cooling delta hysteresis` — default `1 °C`, range `0–5 °C`, step `0.5 °C`
+- `Enable temperature deadband` — default `on`
+- `Temperature deadband` — default `0.5 °C`, range `0–2 °C`, step `0.1 °C`
+- `Position change threshold` — default `1%`, range `0–10%`, step `0.5%`
 - `Adaptive outdoor factor`
 - `Adaptive rate factor`
 - `Update interval`
 - `Autotune sample seconds`
-- `Outdoor lock enabled`
-- `Outdoor summer limit`
-- `Outdoor lock threshold`
 - `Calibration points`
 
-### Calibration points
+Diagnostic/live sensors:
+
+- `Current temperature`
+- `Outdoor temperature`
+- `Cooling delta`
+- `Cover position`
+- `PID output`
+- `Temperature error`
+- `Temperature trend`
+- `Controller status`
+
+Other entities:
+
+- `PID Window Enabled` switch
+- `Temp sensor guard` switch
+- `Enable temperature deadband` switch
+- `Autotune` button
+- `Calibration points` text entity
+
+## Migration from old PID profiles
+
+Older versions had separate PID profiles:
+
+- `Winter Kp / Ki / Kd`
+- `Summer Kp / Ki / Kd`
+- `PID Profile Mode`
+
+These are removed.
+
+On update, the integration migrates old config entries:
+
+- old `winter_kp / winter_ki / winter_kd` become the new common `PID Kp / PID Ki / PID Kd`
+- if winter values are missing, defaults are used
+- old summer values are ignored
+- deprecated winter/summer entities are removed from the entity registry
+
+After update, only the common PID settings should remain visible.
+
+## Calibration points
 
 Optional text field with points in the form:
 
-`10:0.5,20:1.0,30:1.5,50:2.5,100:12.0`
+```text
+10:0.5,20:1.0,30:1.5,50:2.5,100:12.0
+```
 
 This maps PID output percent to the real opening of the window/actuator.
 
-## Control logic
+## Autotune
 
-- `auto` profile:
-  - uses outdoor temperature when available
-  - otherwise falls back to indoor trend / target temperature
-- `Outdoor summer limit` switches the controller into summer logic at warm outdoor temperatures
-- `Outdoor lock threshold` clamps opening more aggressively when it is too warm outside
-- Autotune disables normal PID during the test, moves the window through 25 / 50 / 75 / 100%, samples response, then restores normal control
+Autotune temporarily disables normal PID, moves the window through stepped positions, samples the room response, updates the common PID coefficients, then restores normal control.
 
-## Status
-
-This is an initial HACS-ready version focused on the core PID controller.
+It is a real stepped response test, not an instant coefficient guess.
 
 ## Installation
 
@@ -62,22 +178,15 @@ This is an initial HACS-ready version focused on the core PID controller.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration**.
 6. Select the indoor temperature sensor and the target cover.
+7. Optional: select the outdoor temperature sensor if you want to use `auto` cooling mode.
 
 ### Manual installation
 
 Copy `custom_components/pid_window` to `/config/custom_components/pid_window` and restart Home Assistant.
 
-## Entities
-
-- `switch` to enable/disable the controller
-- `number` entities for target temperature and tuning settings
-- `text` entity for calibration points
-- `sensor` entities for controller state and live values
-- `button` for autotune
-
 ## Notes
 
-- The component is designed for a window with 0–100% position control.
-- The outdoor sensor is optional.
-- If the outdoor sensor is present, it can be used to limit window opening in warm weather.
-- The autotune is a stepped response test, not a quick coefficient guess.
+- The controlled window/cover must support 0–100% positioning.
+- `force` mode can work without an outdoor sensor.
+- `auto` mode requires an outdoor sensor; if it is unavailable, PID is blocked safely.
+- The integration is focused on cooling by opening a window when outside air is colder than room air.

@@ -10,15 +10,18 @@
           "cover_entity": "Window/cover entity",
           "outdoor_sensor": "Outdoor temperature sensor",
           "target_temp": "Target temperature",
-          "kp": "Kp",
-          "ki": "Ki",
-          "kd": "Kd",
+          "kp": "PID Kp",
+          "ki": "PID Ki",
+          "kd": "PID Kd",
+          "cooling_mode": "Cooling mode",
+          "cooling_delta_threshold": "Cooling delta threshold",
+          "cooling_delta_hysteresis": "Cooling delta hysteresis",
+          "enable_temp_deadband": "Enable temperature deadband",
+          "temp_deadband": "Temperature deadband",
+          "position_change_threshold": "Position change threshold",
           "update_interval": "Update interval (seconds)",
           "min_position": "Minimum cover position",
-          "max_position": "Maximum cover position",
-          "enable_outdoor_lock": "Enable outdoor limit logic",
-          "outdoor_summer_limit": "Summer outdoor limit",
-          "outdoor_lock_threshold": "Outdoor lock threshold"
+          "max_position": "Maximum cover position"
         }
       }
     }

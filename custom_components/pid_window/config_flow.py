@@ -10,15 +10,20 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_COOLING_DELTA_HYSTERESIS,
+    CONF_COOLING_DELTA_THRESHOLD,
     CONF_COVER_ENTITY,
-    CONF_ENABLE_OUTDOOR_LOCK,
+    CONF_ENABLE_TEMP_DEADBAND,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
-    CONF_OUTDOOR_LOCK_THRESHOLD,
     CONF_OUTDOOR_SENSOR,
-    CONF_OUTDOOR_SUMMER_LIMIT,
-    CONF_PROFILE_MODE,
+    CONF_POSITION_CHANGE_THRESHOLD,
+    CONF_COOLING_MODE,
+    CONF_KD,
+    CONF_KI,
+    CONF_KP,
     CONF_TARGET_TEMP,
+    CONF_TEMP_DEADBAND,
     CONF_TEMP_SENSOR,
     CONF_AUTOTUNE_SAMPLE_SECONDS,
     CONF_CALIBRATION_POINTS,
@@ -26,18 +31,31 @@ from .const import (
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
     DEFAULT_NAME,
-    DEFAULT_OUTDOOR_LOCK_THRESHOLD,
-    DEFAULT_OUTDOOR_SUMMER_LIMIT,
-    DEFAULT_PROFILE_MODE,
+    DEFAULT_POSITION_CHANGE_THRESHOLD,
+    DEFAULT_COOLING_MODE,
+    DEFAULT_KD,
+    DEFAULT_KI,
+    DEFAULT_KP,
     DEFAULT_TARGET_TEMP,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
     DEFAULT_CALIBRATION_POINTS,
-    PROFILE_AUTO,
-    PROFILE_SUMMER,
-    PROFILE_WINTER,
+    DEFAULT_COOLING_DELTA_HYSTERESIS,
+    DEFAULT_COOLING_DELTA_THRESHOLD,
+    DEFAULT_ENABLE_TEMP_DEADBAND,
+    DEFAULT_TEMP_DEADBAND,
+    COOLING_MODE_AUTO,
+    COOLING_MODE_DISABLED,
+    COOLING_MODE_FORCE,
     DOMAIN,
 )
+
+
+def _cooling_mode_default(data: dict) -> str:
+    mode = data.get(CONF_COOLING_MODE, data.get("profile_mode", DEFAULT_COOLING_MODE))
+    if mode not in {COOLING_MODE_DISABLED, COOLING_MODE_FORCE, COOLING_MODE_AUTO}:
+        return DEFAULT_COOLING_MODE
+    return str(mode)
 
 
 def _schema(data: dict | None = None) -> vol.Schema:
@@ -57,11 +75,33 @@ def _schema(data: dict | None = None) -> vol.Schema:
             vol.Required(CONF_TARGET_TEMP, default=data.get(CONF_TARGET_TEMP, DEFAULT_TARGET_TEMP)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=16, max=30, step=0.1, mode=selector.NumberSelectorMode.BOX)
             ),
-            vol.Required(CONF_PROFILE_MODE, default=data.get(CONF_PROFILE_MODE, DEFAULT_PROFILE_MODE)): selector.SelectSelector(
+            vol.Required(CONF_KP, default=data.get(CONF_KP, data.get("winter_kp", DEFAULT_KP))): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=50, step=0.1, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_KI, default=data.get(CONF_KI, data.get("winter_ki", DEFAULT_KI))): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=5, step=0.01, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_KD, default=data.get(CONF_KD, data.get("winter_kd", DEFAULT_KD))): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=10, step=0.01, mode=selector.NumberSelectorMode.BOX)
+            ),
+            vol.Required(CONF_COOLING_MODE, default=_cooling_mode_default(data)): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[PROFILE_AUTO, PROFILE_WINTER, PROFILE_SUMMER],
+                    options=[COOLING_MODE_DISABLED, COOLING_MODE_FORCE, COOLING_MODE_AUTO],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 )
+            ),
+            vol.Required(CONF_COOLING_DELTA_THRESHOLD, default=data.get(CONF_COOLING_DELTA_THRESHOLD, DEFAULT_COOLING_DELTA_THRESHOLD)): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=3, max=20, step=0.5, mode=selector.NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_COOLING_DELTA_HYSTERESIS, default=data.get(CONF_COOLING_DELTA_HYSTERESIS, DEFAULT_COOLING_DELTA_HYSTERESIS)): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=5, step=0.5, mode=selector.NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_ENABLE_TEMP_DEADBAND, default=data.get(CONF_ENABLE_TEMP_DEADBAND, DEFAULT_ENABLE_TEMP_DEADBAND)): selector.BooleanSelector(),
+            vol.Required(CONF_TEMP_DEADBAND, default=data.get(CONF_TEMP_DEADBAND, DEFAULT_TEMP_DEADBAND)): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=2, step=0.1, mode=selector.NumberSelectorMode.SLIDER)
+            ),
+            vol.Required(CONF_POSITION_CHANGE_THRESHOLD, default=data.get(CONF_POSITION_CHANGE_THRESHOLD, DEFAULT_POSITION_CHANGE_THRESHOLD)): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=10, step=0.5, mode=selector.NumberSelectorMode.SLIDER)
             ),
             vol.Required(CONF_AUTOTUNE_SAMPLE_SECONDS, default=data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=60, max=900, step=30, mode=selector.NumberSelectorMode.BOX)
@@ -76,19 +116,12 @@ def _schema(data: dict | None = None) -> vol.Schema:
             vol.Required(CONF_MAX_POSITION, default=data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=100, step=1, mode=selector.NumberSelectorMode.SLIDER)
             ),
-            vol.Required(CONF_ENABLE_OUTDOOR_LOCK, default=data.get(CONF_ENABLE_OUTDOOR_LOCK, False)): selector.BooleanSelector(),
-            vol.Required(CONF_OUTDOOR_SUMMER_LIMIT, default=data.get(CONF_OUTDOOR_SUMMER_LIMIT, DEFAULT_OUTDOOR_SUMMER_LIMIT)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=-20, max=40, step=0.1, mode=selector.NumberSelectorMode.BOX)
-            ),
-            vol.Required(CONF_OUTDOOR_LOCK_THRESHOLD, default=data.get(CONF_OUTDOOR_LOCK_THRESHOLD, DEFAULT_OUTDOOR_LOCK_THRESHOLD)): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=-10, max=50, step=0.1, mode=selector.NumberSelectorMode.BOX)
-            ),
         }
     )
 
 
 class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(self, user_input=None):
         errors = {}

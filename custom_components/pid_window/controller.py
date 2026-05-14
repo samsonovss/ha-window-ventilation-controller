@@ -19,45 +19,44 @@ from .const import (
     CONF_AUTOTUNE_SAMPLE_SECONDS,
     CONF_AUTOTUNE_STEP,
     CONF_CALIBRATION_POINTS,
+    CONF_COOLING_DELTA_HYSTERESIS,
+    CONF_COOLING_DELTA_THRESHOLD,
+    CONF_COOLING_MODE,
+    CONF_KD,
+    CONF_KI,
+    CONF_KP,
     CONF_COVER_ENTITY,
-    CONF_ENABLE_OUTDOOR_LOCK,
+    CONF_ENABLE_TEMP_DEADBAND,
     CONF_ENABLE_TEMP_SENSOR_GUARD,
     CONF_MAX_POSITION,
     CONF_MIN_POSITION,
-    CONF_OUTDOOR_LOCK_THRESHOLD,
     CONF_OUTDOOR_SENSOR,
-    CONF_OUTDOOR_SUMMER_LIMIT,
-    CONF_PROFILE_MODE,
+    CONF_POSITION_CHANGE_THRESHOLD,
     CONF_TARGET_TEMP,
+    CONF_TEMP_DEADBAND,
     CONF_TEMP_SENSOR,
-    CONF_SUMMER_KD,
-    CONF_SUMMER_KI,
-    CONF_SUMMER_KP,
     CONF_UPDATE_INTERVAL,
-    CONF_WINTER_KD,
-    CONF_WINTER_KI,
-    CONF_WINTER_KP,
     DEFAULT_ADAPTIVE_OUTDOOR_FACTOR,
     DEFAULT_ADAPTIVE_RATE_FACTOR,
     DEFAULT_AUTOTUNE_SAMPLE_SECONDS,
     DEFAULT_CALIBRATION_POINTS,
+    DEFAULT_COOLING_DELTA_HYSTERESIS,
+    DEFAULT_COOLING_DELTA_THRESHOLD,
+    DEFAULT_COOLING_MODE,
+    DEFAULT_KD,
+    DEFAULT_KI,
+    DEFAULT_KP,
+    DEFAULT_ENABLE_TEMP_DEADBAND,
     DEFAULT_ENABLE_TEMP_SENSOR_GUARD,
     DEFAULT_MAX_POSITION,
     DEFAULT_MIN_POSITION,
-    DEFAULT_OUTDOOR_LOCK_THRESHOLD,
-    DEFAULT_OUTDOOR_SUMMER_LIMIT,
-    DEFAULT_PROFILE_MODE,
+    DEFAULT_POSITION_CHANGE_THRESHOLD,
     DEFAULT_TARGET_TEMP,
+    DEFAULT_TEMP_DEADBAND,
     DEFAULT_UPDATE_INTERVAL,
-    DEFAULT_SUMMER_KD,
-    DEFAULT_SUMMER_KI,
-    DEFAULT_SUMMER_KP,
-    DEFAULT_WINTER_KD,
-    DEFAULT_WINTER_KI,
-    DEFAULT_WINTER_KP,
-    PROFILE_AUTO,
-    PROFILE_SUMMER,
-    PROFILE_WINTER,
+    COOLING_MODE_AUTO,
+    COOLING_MODE_DISABLED,
+    COOLING_MODE_FORCE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,11 +66,11 @@ _LOGGER = logging.getLogger(__name__)
 class ControllerState:
     current_temp: float | None = None
     outdoor_temp: float | None = None
+    cooling_delta: float | None = None
     cover_position: float | None = None
     pid_output: float | None = None
     error: float | None = None
     temperature_trend: float | None = None
-    active_profile: str = DEFAULT_PROFILE_MODE
     last_autotune_result: str | None = None
     enabled: bool = True
     temp_sensor_guard_tripped: bool = False
@@ -91,14 +90,20 @@ class PidWindowController:
         self.temp_sensor = data[CONF_TEMP_SENSOR]
         self.cover_entity = data[CONF_COVER_ENTITY]
         self.outdoor_sensor = data.get(CONF_OUTDOOR_SENSOR) or options.get(CONF_OUTDOOR_SENSOR)
-        self.profile_mode = str(options.get(CONF_PROFILE_MODE, data.get(CONF_PROFILE_MODE, DEFAULT_PROFILE_MODE)))
+        self.cooling_mode = str(
+            options.get(
+                CONF_COOLING_MODE,
+                data.get(CONF_COOLING_MODE, options.get("profile_mode", data.get("profile_mode", DEFAULT_COOLING_MODE))),
+            )
+        )
+        if self.cooling_mode not in {COOLING_MODE_DISABLED, COOLING_MODE_FORCE, COOLING_MODE_AUTO}:
+            self.cooling_mode = DEFAULT_COOLING_MODE
+        # Backward compatibility for code/status that still talks about profiles.
+        self.profile_mode = self.cooling_mode
         self.target_temp = float(options.get(CONF_TARGET_TEMP, data.get(CONF_TARGET_TEMP, DEFAULT_TARGET_TEMP)))
-        self.winter_kp = float(options.get(CONF_WINTER_KP, data.get(CONF_WINTER_KP, DEFAULT_WINTER_KP)))
-        self.winter_ki = float(options.get(CONF_WINTER_KI, data.get(CONF_WINTER_KI, DEFAULT_WINTER_KI)))
-        self.winter_kd = float(options.get(CONF_WINTER_KD, data.get(CONF_WINTER_KD, DEFAULT_WINTER_KD)))
-        self.summer_kp = float(options.get(CONF_SUMMER_KP, data.get(CONF_SUMMER_KP, DEFAULT_SUMMER_KP)))
-        self.summer_ki = float(options.get(CONF_SUMMER_KI, data.get(CONF_SUMMER_KI, DEFAULT_SUMMER_KI)))
-        self.summer_kd = float(options.get(CONF_SUMMER_KD, data.get(CONF_SUMMER_KD, DEFAULT_SUMMER_KD)))
+        self.kp = float(options.get(CONF_KP, data.get(CONF_KP, data.get("winter_kp", DEFAULT_KP))))
+        self.ki = float(options.get(CONF_KI, data.get(CONF_KI, data.get("winter_ki", DEFAULT_KI))))
+        self.kd = float(options.get(CONF_KD, data.get(CONF_KD, data.get("winter_kd", DEFAULT_KD))))
         self.adaptive_outdoor_factor = float(options.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, data.get(CONF_ADAPTIVE_OUTDOOR_FACTOR, DEFAULT_ADAPTIVE_OUTDOOR_FACTOR)))
         self.adaptive_rate_factor = float(options.get(CONF_ADAPTIVE_RATE_FACTOR, data.get(CONF_ADAPTIVE_RATE_FACTOR, DEFAULT_ADAPTIVE_RATE_FACTOR)))
         self.autotune_sample_seconds = int(options.get(CONF_AUTOTUNE_SAMPLE_SECONDS, data.get(CONF_AUTOTUNE_SAMPLE_SECONDS, DEFAULT_AUTOTUNE_SAMPLE_SECONDS)))
@@ -106,10 +111,12 @@ class PidWindowController:
         self.update_interval = int(options.get(CONF_UPDATE_INTERVAL, data.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL)))
         self.min_position = int(options.get(CONF_MIN_POSITION, data.get(CONF_MIN_POSITION, DEFAULT_MIN_POSITION)))
         self.max_position = int(options.get(CONF_MAX_POSITION, data.get(CONF_MAX_POSITION, DEFAULT_MAX_POSITION)))
-        self.enable_outdoor_lock = bool(options.get(CONF_ENABLE_OUTDOOR_LOCK, data.get(CONF_ENABLE_OUTDOOR_LOCK, False)))
         self.enable_temp_sensor_guard = bool(options.get(CONF_ENABLE_TEMP_SENSOR_GUARD, data.get(CONF_ENABLE_TEMP_SENSOR_GUARD, DEFAULT_ENABLE_TEMP_SENSOR_GUARD)))
-        self.outdoor_summer_limit = float(options.get(CONF_OUTDOOR_SUMMER_LIMIT, data.get(CONF_OUTDOOR_SUMMER_LIMIT, DEFAULT_OUTDOOR_SUMMER_LIMIT)))
-        self.outdoor_lock_threshold = float(options.get(CONF_OUTDOOR_LOCK_THRESHOLD, data.get(CONF_OUTDOOR_LOCK_THRESHOLD, DEFAULT_OUTDOOR_LOCK_THRESHOLD)))
+        self.enable_temp_deadband = bool(options.get(CONF_ENABLE_TEMP_DEADBAND, data.get(CONF_ENABLE_TEMP_DEADBAND, DEFAULT_ENABLE_TEMP_DEADBAND)))
+        self.temp_deadband = float(options.get(CONF_TEMP_DEADBAND, data.get(CONF_TEMP_DEADBAND, DEFAULT_TEMP_DEADBAND)))
+        self.position_change_threshold = float(options.get(CONF_POSITION_CHANGE_THRESHOLD, data.get(CONF_POSITION_CHANGE_THRESHOLD, DEFAULT_POSITION_CHANGE_THRESHOLD)))
+        self.cooling_delta_threshold = float(options.get(CONF_COOLING_DELTA_THRESHOLD, data.get(CONF_COOLING_DELTA_THRESHOLD, DEFAULT_COOLING_DELTA_THRESHOLD)))
+        self.cooling_delta_hysteresis = float(options.get(CONF_COOLING_DELTA_HYSTERESIS, data.get(CONF_COOLING_DELTA_HYSTERESIS, DEFAULT_COOLING_DELTA_HYSTERESIS)))
 
         self.state = ControllerState()
         self._listeners: list[Callable[[], None]] = []
@@ -122,6 +129,7 @@ class PidWindowController:
         self._last_sent_position: float | None = None
         self._last_update_tick: float | None = None
         self._sample_count = 0
+        self._cooling_pid_allowed = False
         self._no_effect_count = 0
         self._autotune_active = False
         self._autotune_task = None
@@ -178,9 +186,13 @@ class PidWindowController:
         except (TypeError, ValueError):
             return None
 
+    def _cover_available(self) -> bool:
+        state = self.hass.states.get(self.cover_entity)
+        return state is not None and state.state not in {STATE_UNKNOWN, STATE_UNAVAILABLE, "none"}
+
     def _cover_position(self) -> float | None:
         state = self.hass.states.get(self.cover_entity)
-        if state is None:
+        if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE, "none"}:
             return None
         attr = state.attributes.get("current_position")
         if attr is not None:
@@ -194,15 +206,7 @@ class PidWindowController:
             return float(self.min_position)
         return None
 
-    def _season_limit(self, outdoor_temp: float | None, desired: float) -> float:
-        if outdoor_temp is None or not self.enable_outdoor_lock:
-            return desired
-        if outdoor_temp >= self.outdoor_lock_threshold:
-            return float(self.min_position)
-        return desired
-
     def _set_autotune_status(self, status: str) -> None:
-        self.state.status = status
         self.state.last_autotune_result = status
         self._notify()
 
@@ -272,26 +276,8 @@ class PidWindowController:
         desired_cm = normalized * self._calibration_max_cm
         return self._invert_calibration(desired_cm)
 
-    def _profile_from_context(self, current_temp: float | None, outdoor_temp: float | None, temperature_trend: float | None) -> str:
-        if self.profile_mode in {PROFILE_WINTER, PROFILE_SUMMER}:
-            return self.profile_mode
-        if outdoor_temp is None:
-            if temperature_trend is not None:
-                return PROFILE_SUMMER if temperature_trend > 0.2 else PROFILE_WINTER
-            if current_temp is not None:
-                return PROFILE_SUMMER if current_temp >= self.target_temp else PROFILE_WINTER
-            return PROFILE_WINTER
-        summer_threshold = min(self.outdoor_summer_limit, 15.0)
-        if outdoor_temp >= self.outdoor_lock_threshold:
-            return PROFILE_SUMMER
-        if outdoor_temp >= summer_threshold:
-            return PROFILE_SUMMER
-        return PROFILE_WINTER
-
-    def _profile_gains(self, profile: str) -> tuple[float, float, float]:
-        if profile == PROFILE_SUMMER:
-            return self.summer_kp, self.summer_ki, self.summer_kd
-        return self.winter_kp, self.winter_ki, self.winter_kd
+    def _pid_gains(self) -> tuple[float, float, float]:
+        return self.kp, self.ki, self.kd
 
     def _adaptive_multiplier(self, outdoor_temp: float | None, temperature_trend: float | None) -> float:
         multiplier = 1.0
@@ -305,27 +291,41 @@ class PidWindowController:
         return max(0.4, min(1.6, multiplier))
 
     async def _async_tick(self, _event: Event | None) -> None:
+        try:
+            await self._async_tick_impl(_event)
+        except Exception:  # noqa: BLE001 - keep the controller status safe for unexpected runtime errors.
+            _LOGGER.exception("Unexpected PID window controller update error")
+            self.state.status = "error"
+            self._notify()
+
+    async def _async_tick_impl(self, _event: Event | None) -> None:
         current_temp = self._read_float(self.temp_sensor)
         outdoor_temp = self._read_float(self.outdoor_sensor) if self.outdoor_sensor else None
-        cover_position = self._cover_position()
+        cooling_delta = None if current_temp is None or outdoor_temp is None else current_temp - outdoor_temp
+        cover_available = self._cover_available()
+        cover_position = self._cover_position() if cover_available else None
 
         dt_hours = max(self.update_interval, 15) / 3600.0
         temperature_trend = None if self._last_temp is None or current_temp is None else (current_temp - self._last_temp) / dt_hours
 
         self.state.current_temp = current_temp
         self.state.outdoor_temp = outdoor_temp
+        self.state.cooling_delta = cooling_delta
         self.state.cover_position = cover_position
         self.state.temperature_trend = temperature_trend
         self.state.enabled = self._enabled
         self.state.autotune_running = self._autotune_active
 
-        if self.enable_temp_sensor_guard and current_temp is None:
-            self.state.temp_sensor_guard_tripped = True
-            self.state.status = "temp_sensor_missing"
+        if current_temp is None:
+            self.state.status = "temp_sensor_unavailable"
             self.state.pid_output = float(self.min_position)
-            await self._set_cover_position(float(self.min_position))
-            if self._enabled:
-                self._set_enabled_runtime(False)
+            if self.enable_temp_sensor_guard:
+                self.state.temp_sensor_guard_tripped = True
+                if cover_available:
+                    await self._set_cover_position(float(self.min_position))
+                if self._enabled:
+                    self._set_enabled_runtime(False)
+                self.state.status = "temp_sensor_unavailable"
             self._notify()
             return
 
@@ -335,34 +335,71 @@ class PidWindowController:
                 self._set_enabled_runtime(True)
 
         if self._autotune_active:
-            self.state.status = self.state.last_autotune_result or "autotune_running"
+            self.state.status = "idle"
             self._notify()
             return
 
-        if current_temp is None:
-            self.state.status = "waiting_for_temperature"
-            self._notify()
-            return
-
-        if not self._enabled:
-            self.state.status = "disabled"
+        if not cover_available:
+            self.state.status = "cover_unavailable"
             self._notify()
             return
 
         error = current_temp - self.target_temp
         self.state.error = error
-        active_profile = self._profile_from_context(current_temp, outdoor_temp, temperature_trend)
-        self.state.active_profile = active_profile
 
-        # If the room is too cold, close the window fully.
-        if error <= 0.0:
+        if not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED:
+            self._integral = 0.0
+            self._previous_error = None
+            self._last_temp = current_temp
+            self.state.pid_output = float(self.min_position)
+            self.state.status = "disabled"
+            await self._set_cover_position(float(self.min_position))
+            self._notify()
+            return
+
+        if self.cooling_mode == COOLING_MODE_AUTO:
+            if cooling_delta is None:
+                self._cooling_pid_allowed = False
+                self._integral = 0.0
+                self._previous_error = None
+                self._last_temp = current_temp
+                self.state.pid_output = float(self.min_position)
+                self.state.status = "outdoor_sensor_unavailable"
+                await self._set_cover_position(float(self.min_position))
+                self._notify()
+                return
+
+            if cooling_delta >= self.cooling_delta_threshold:
+                self._cooling_pid_allowed = True
+            elif cooling_delta <= self.cooling_delta_threshold - self.cooling_delta_hysteresis:
+                self._cooling_pid_allowed = False
+
+            if not self._cooling_pid_allowed:
+                self._integral = 0.0
+                self._previous_error = None
+                self._last_temp = current_temp
+                self.state.pid_output = float(self.min_position)
+                self.state.status = "auto_blocked_by_delta"
+                await self._set_cover_position(float(self.min_position))
+                self._notify()
+                return
+
+        # If the room is at/below target, close the window fully.
+        if current_temp <= self.target_temp:
             self._integral = 0.0
             self._previous_error = error
             self._last_temp = current_temp
             target_position = float(self.min_position)
             self.state.pid_output = target_position
-            self.state.status = "closing"
+            self.state.status = "idle"
             await self._set_cover_position(target_position)
+            self._notify()
+            return
+
+        if self.enable_temp_deadband and current_temp < self.target_temp + self.temp_deadband:
+            self._previous_error = error
+            self._last_temp = current_temp
+            self.state.status = "deadband"
             self._notify()
             return
 
@@ -370,11 +407,10 @@ class PidWindowController:
         self._integral = max(-20.0, min(20.0, self._integral))
         derivative = 0.0 if self._previous_error is None else (error - self._previous_error) / dt_hours
 
-        kp, ki, kd = self._profile_gains(active_profile)
+        kp, ki, kd = self._pid_gains()
         output = kp * error + ki * self._integral + kd * derivative
-        output *= self._adaptive_multiplier(outdoor_temp, temperature_trend)
-        output = max(self.min_position, min(self.max_position, output))
-        output = self._season_limit(outdoor_temp, output)
+        outdoor_temp_for_cooling = None if self.cooling_mode == COOLING_MODE_FORCE else outdoor_temp
+        output *= self._adaptive_multiplier(outdoor_temp_for_cooling, temperature_trend)
         output = max(self.min_position, min(self.max_position, output))
 
         # If the temperature is not moving for several cycles, nudge the window open a bit more.
@@ -393,9 +429,7 @@ class PidWindowController:
         self._last_update_tick = self.hass.loop.time()
         self._last_position = output
         self.state.pid_output = output
-        self.state.status = "tuning" if self._autotune_active else (
-            f"boosting_{active_profile}" if self._no_effect_count >= 2 else f"controlling_{active_profile}"
-        )
+        self.state.status = "cooling"
         await self._set_cover_position(output)
         self._notify()
 
@@ -409,7 +443,7 @@ class PidWindowController:
             position = self._apply_calibration(position)
             position = max(self.min_position, min(self.max_position, position))
 
-        if self._last_sent_position is not None and abs(self._last_sent_position - position) < 1.0:
+        if self._last_sent_position is not None and abs(self._last_sent_position - position) < self.position_change_threshold:
             return
 
         await self.hass.services.async_call(
@@ -437,11 +471,17 @@ class PidWindowController:
         self._notify()
         await self._async_tick(None)
 
-    async def async_set_profile_mode(self, mode: str) -> None:
+    async def async_set_cooling_mode(self, mode: str) -> None:
+        if mode not in {COOLING_MODE_DISABLED, COOLING_MODE_FORCE, COOLING_MODE_AUTO}:
+            mode = DEFAULT_COOLING_MODE
+        self.cooling_mode = mode
         self.profile_mode = mode
-        self._async_save_option(CONF_PROFILE_MODE, mode)
+        self._async_save_option(CONF_COOLING_MODE, mode)
         self._notify()
         await self._async_tick(None)
+
+    async def async_set_profile_mode(self, mode: str) -> None:
+        await self.async_set_cooling_mode(mode)
 
     async def async_set_gain(self, key: str, value: float) -> None:
         setattr(self, key, value)
@@ -460,25 +500,37 @@ class PidWindowController:
         self._async_save_option(CONF_AUTOTUNE_SAMPLE_SECONDS, self.autotune_sample_seconds)
         self._notify()
 
-    async def async_set_outdoor_lock_enabled(self, enabled: bool) -> None:
-        self.enable_outdoor_lock = bool(enabled)
-        self._async_save_option(CONF_ENABLE_OUTDOOR_LOCK, self.enable_outdoor_lock)
-        self._notify()
-        await self._async_tick(None)
-
     async def async_set_temp_sensor_guard_enabled(self, enabled: bool) -> None:
         self._set_temp_sensor_guard_enabled(enabled)
         await self._async_tick(None)
 
-    async def async_set_outdoor_summer_limit(self, value: float) -> None:
-        self.outdoor_summer_limit = float(value)
-        self._async_save_option(CONF_OUTDOOR_SUMMER_LIMIT, self.outdoor_summer_limit)
+    async def async_set_cooling_delta_threshold(self, value: float) -> None:
+        self.cooling_delta_threshold = float(value)
+        self._async_save_option(CONF_COOLING_DELTA_THRESHOLD, self.cooling_delta_threshold)
         self._notify()
         await self._async_tick(None)
 
-    async def async_set_outdoor_lock_threshold(self, value: float) -> None:
-        self.outdoor_lock_threshold = float(value)
-        self._async_save_option(CONF_OUTDOOR_LOCK_THRESHOLD, self.outdoor_lock_threshold)
+    async def async_set_cooling_delta_hysteresis(self, value: float) -> None:
+        self.cooling_delta_hysteresis = float(value)
+        self._async_save_option(CONF_COOLING_DELTA_HYSTERESIS, self.cooling_delta_hysteresis)
+        self._notify()
+        await self._async_tick(None)
+
+    async def async_set_temp_deadband_enabled(self, enabled: bool) -> None:
+        self.enable_temp_deadband = bool(enabled)
+        self._async_save_option(CONF_ENABLE_TEMP_DEADBAND, self.enable_temp_deadband)
+        self._notify()
+        await self._async_tick(None)
+
+    async def async_set_temp_deadband(self, value: float) -> None:
+        self.temp_deadband = float(value)
+        self._async_save_option(CONF_TEMP_DEADBAND, self.temp_deadband)
+        self._notify()
+        await self._async_tick(None)
+
+    async def async_set_position_change_threshold(self, value: float) -> None:
+        self.position_change_threshold = float(value)
+        self._async_save_option(CONF_POSITION_CHANGE_THRESHOLD, self.position_change_threshold)
         self._notify()
         await self._async_tick(None)
 
@@ -498,12 +550,11 @@ class PidWindowController:
         current = self._read_float(self.temp_sensor)
         outdoor_temp = self._read_float(self.outdoor_sensor) if self.outdoor_sensor else None
         if current is None:
-            self.state.status = "autotune_no_temperature"
-            self.state.last_autotune_result = self.state.status
+            self.state.status = "temp_sensor_unavailable"
+            self.state.last_autotune_result = "autotune_no_temperature"
             self._notify()
             return
 
-        active_profile = self._profile_from_context(current, outdoor_temp, None if self._last_temp is None else current - self._last_temp)
         current_position = self._cover_position()
         if current_position is None:
             current_position = float(self.min_position)
@@ -513,7 +564,7 @@ class PidWindowController:
         self._integral = 0.0
         self._previous_error = None
         self.state.autotune_running = True
-        self._set_autotune_status(f"autotune_started_{active_profile}")
+        self._set_autotune_status("autotune_started")
 
         step_positions = [0.25, 0.5, 0.75, 1.0]
         total_range = max(1.0, float(self.max_position - self.min_position))
@@ -561,36 +612,24 @@ class PidWindowController:
         elapsed_hours = max((self.hass.loop.time() - start_monotonic) / 3600.0, 1 / 3600.0)
 
         if not intended or effect < 0.005:
-            if active_profile == PROFILE_SUMMER:
-                kp = max(self.summer_kp, DEFAULT_SUMMER_KP)
-                ki = max(self.summer_ki, DEFAULT_SUMMER_KI)
-                kd = max(self.summer_kd, DEFAULT_SUMMER_KD)
-            else:
-                kp = max(self.winter_kp, DEFAULT_WINTER_KP)
-                ki = max(self.winter_ki, DEFAULT_WINTER_KI)
-                kd = max(self.winter_kd, DEFAULT_WINTER_KD)
-            self._set_autotune_status(f"autotune_finished_noisy_{active_profile}")
+            kp = max(self.kp, DEFAULT_KP)
+            ki = max(self.ki, DEFAULT_KI)
+            kd = max(self.kd, DEFAULT_KD)
+            self._set_autotune_status("autotune_finished_noisy")
         else:
             kp = max(4.0, min(40.0, 1.5 / max(effect, 0.01)))
             ki = max(0.03, min(0.8, kp / max(elapsed_hours * 12.0, 8.0)))
             kd = max(0.0, min(3.0, kp * min(elapsed_hours, 0.5) / 3.0))
-            self._set_autotune_status(f"autotune_finished_{active_profile}")
+            self._set_autotune_status("autotune_finished")
 
-        if active_profile == PROFILE_SUMMER:
-            self.summer_kp, self.summer_ki, self.summer_kd = kp, ki, kd
-            self._async_save_option(CONF_SUMMER_KP, kp)
-            self._async_save_option(CONF_SUMMER_KI, ki)
-            self._async_save_option(CONF_SUMMER_KD, kd)
-        else:
-            self.winter_kp, self.winter_ki, self.winter_kd = kp, ki, kd
-            self._async_save_option(CONF_WINTER_KP, kp)
-            self._async_save_option(CONF_WINTER_KI, ki)
-            self._async_save_option(CONF_WINTER_KD, kd)
+        self.kp, self.ki, self.kd = kp, ki, kd
+        self._async_save_option(CONF_KP, kp)
+        self._async_save_option(CONF_KI, ki)
+        self._async_save_option(CONF_KD, kd)
 
         await self._set_cover_position(current_position, apply_calibration=False)
         self._autotune_active = False
         self.state.autotune_running = False
-        self.state.active_profile = active_profile
         self._integral = 0.0
         self._previous_error = None
         self._set_enabled_runtime(True)

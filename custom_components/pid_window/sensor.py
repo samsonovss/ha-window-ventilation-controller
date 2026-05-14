@@ -17,11 +17,11 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
     sensors = [
         PidWindowSensor(controller, entry.entry_id, "current_temp", "Current temperature", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "outdoor_temp", "Outdoor temperature", UnitOfTemperature.CELSIUS),
+        PidWindowSensor(controller, entry.entry_id, "cooling_delta", "Cooling delta", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "cover_position", "Cover position", "%"),
         PidWindowSensor(controller, entry.entry_id, "pid_output", "PID output", "%"),
         PidWindowSensor(controller, entry.entry_id, "error", "Temperature error", UnitOfTemperature.CELSIUS),
         PidWindowSensor(controller, entry.entry_id, "temperature_trend", "Temperature trend", "°C/h"),
-        PidWindowSensor(controller, entry.entry_id, "active_profile", "Active profile", None, is_text=True),
         PidWindowSensor(controller, entry.entry_id, "status", "Controller status", None, is_text=True),
     ]
     async_add_entities(sensors)
@@ -38,9 +38,9 @@ class PidWindowSensor(SensorEntity):
         self._attr_unique_id = f"{entry_id}_{key}"
         self._attr_native_unit_of_measurement = unit
         self._remove_listener = controller.register_listener(self._handle_update)
-        if key in {"status", "active_profile", "temperature_trend", "pid_output", "error"}:
+        if key in {"status", "temperature_trend", "pid_output", "error"}:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        if key in {"current_temp", "outdoor_temp", "error"}:
+        if key in {"current_temp", "outdoor_temp", "cooling_delta", "error"}:
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
         elif key in {"cover_position", "temperature_trend"}:
@@ -52,6 +52,12 @@ class PidWindowSensor(SensorEntity):
     @callback
     def _handle_update(self) -> None:
         self.async_write_ha_state()
+
+    @property
+    def available(self) -> bool:
+        if self._key == "cooling_delta":
+            return self._controller.state.cooling_delta is not None
+        return True
 
     @property
     def native_value(self):

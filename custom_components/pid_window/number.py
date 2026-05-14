@@ -18,14 +18,13 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
         PidWindowNumber(controller, entry.entry_id, "target_temp", "Target temperature", 16.0, 30.0, 0.1, UnitOfTemperature.CELSIUS),
         PidWindowNumber(controller, entry.entry_id, "update_interval", "Update interval", 15.0, 600.0, 15.0, None),
         PidWindowNumber(controller, entry.entry_id, "autotune_sample_seconds", "Autotune sample seconds", 60.0, 900.0, 30.0, None),
-        PidWindowNumber(controller, entry.entry_id, "outdoor_summer_limit", "Outdoor summer limit", -20.0, 40.0, 0.1, UnitOfTemperature.CELSIUS),
-        PidWindowNumber(controller, entry.entry_id, "outdoor_lock_threshold", "Outdoor lock threshold", -10.0, 50.0, 0.1, UnitOfTemperature.CELSIUS),
-        PidWindowNumber(controller, entry.entry_id, "winter_kp", "Winter Kp", 0.0, 50.0, 0.1, None),
-        PidWindowNumber(controller, entry.entry_id, "winter_ki", "Winter Ki", 0.0, 5.0, 0.01, None),
-        PidWindowNumber(controller, entry.entry_id, "winter_kd", "Winter Kd", 0.0, 10.0, 0.01, None),
-        PidWindowNumber(controller, entry.entry_id, "summer_kp", "Summer Kp", 0.0, 50.0, 0.1, None),
-        PidWindowNumber(controller, entry.entry_id, "summer_ki", "Summer Ki", 0.0, 5.0, 0.01, None),
-        PidWindowNumber(controller, entry.entry_id, "summer_kd", "Summer Kd", 0.0, 10.0, 0.01, None),
+        PidWindowNumber(controller, entry.entry_id, "cooling_delta_threshold", "Cooling delta threshold", 3.0, 20.0, 0.5, UnitOfTemperature.CELSIUS, NumberMode.SLIDER),
+        PidWindowNumber(controller, entry.entry_id, "cooling_delta_hysteresis", "Cooling delta hysteresis", 0.0, 5.0, 0.5, UnitOfTemperature.CELSIUS, NumberMode.SLIDER),
+        PidWindowNumber(controller, entry.entry_id, "temp_deadband", "Temperature deadband", 0.0, 2.0, 0.1, UnitOfTemperature.CELSIUS, NumberMode.SLIDER),
+        PidWindowNumber(controller, entry.entry_id, "position_change_threshold", "Position change threshold", 0.0, 10.0, 0.5, "%", NumberMode.SLIDER),
+        PidWindowNumber(controller, entry.entry_id, "kp", "PID Kp", 0.0, 50.0, 0.1, None),
+        PidWindowNumber(controller, entry.entry_id, "ki", "PID Ki", 0.0, 5.0, 0.01, None),
+        PidWindowNumber(controller, entry.entry_id, "kd", "PID Kd", 0.0, 10.0, 0.01, None),
         PidWindowNumber(controller, entry.entry_id, "adaptive_outdoor_factor", "Adaptive outdoor factor", 0.0, 1.0, 0.01, None),
         PidWindowNumber(controller, entry.entry_id, "adaptive_rate_factor", "Adaptive rate factor", 0.0, 1.0, 0.01, None),
     ])
@@ -36,7 +35,7 @@ class PidWindowNumber(NumberEntity):
     _attr_entity_category = EntityCategory.CONFIG
     _attr_has_entity_name = True
 
-    def __init__(self, controller, entry_id: str, key: str, name: str, min_value: float, max_value: float, step: float, unit: str | None) -> None:
+    def __init__(self, controller, entry_id: str, key: str, name: str, min_value: float, max_value: float, step: float, unit: str | None, mode: NumberMode = NumberMode.BOX) -> None:
         self._controller = controller
         self._attr_device_info = controller.device_info
         self._key = key
@@ -46,6 +45,7 @@ class PidWindowNumber(NumberEntity):
         self._attr_native_max_value = max_value
         self._attr_native_step = step
         self._attr_native_unit_of_measurement = unit
+        self._attr_mode = mode
 
     @property
     def native_value(self):
@@ -61,11 +61,17 @@ class PidWindowNumber(NumberEntity):
         if self._key == "autotune_sample_seconds":
             await self._controller.async_set_autotune_sample_seconds(int(value))
             return
-        if self._key == "outdoor_summer_limit":
-            await self._controller.async_set_outdoor_summer_limit(float(value))
+        if self._key == "cooling_delta_threshold":
+            await self._controller.async_set_cooling_delta_threshold(float(value))
             return
-        if self._key == "outdoor_lock_threshold":
-            await self._controller.async_set_outdoor_lock_threshold(float(value))
+        if self._key == "cooling_delta_hysteresis":
+            await self._controller.async_set_cooling_delta_hysteresis(float(value))
+            return
+        if self._key == "temp_deadband":
+            await self._controller.async_set_temp_deadband(float(value))
+            return
+        if self._key == "position_change_threshold":
+            await self._controller.async_set_position_change_threshold(float(value))
             return
 
         await self._controller.async_set_gain(self._key, float(value))
