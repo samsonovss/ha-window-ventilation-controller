@@ -71,7 +71,7 @@ class PidWindowController:
 
         self.temp_sensor = data[CONF_TEMP_SENSOR]
         self.cover_entity = data[CONF_COVER_ENTITY]
-        self.outdoor_sensor = data.get(CONF_OUTDOOR_SENSOR) or options.get(CONF_OUTDOOR_SENSOR)
+        self.outdoor_sensor = options.get(CONF_OUTDOOR_SENSOR, data.get(CONF_OUTDOOR_SENSOR)) or None
         self.cooling_mode = str(
             options.get(
                 CONF_COOLING_MODE,
