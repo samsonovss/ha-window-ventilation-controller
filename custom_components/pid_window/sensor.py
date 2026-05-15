@@ -45,6 +45,8 @@ class PidWindowSensor(SensorEntity):
         elif key == "cover_position":
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_icon = "mdi:window-open"
+        elif key == "status":
+            self._attr_icon = "mdi:information-outline"
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(self._remove_listener)
