@@ -93,7 +93,7 @@
           "temp_sensor_unavailable": "Нет датчика комнаты",
           "cover_unavailable": "Окно недоступно",
           "idle": "Ожидание",
-          "integral_locked": "Интеграл заблокирован",
+          "integral_locked": "Ограничение PID",
           "error": "Ошибка"
         }
       },

@@ -93,7 +93,7 @@
           "temp_sensor_unavailable": "Indoor sensor unavailable",
           "cover_unavailable": "Cover unavailable",
           "idle": "Idle",
-          "integral_locked": "Integral locked",
+          "integral_locked": "PID limited",
           "error": "Error"
         }
       },

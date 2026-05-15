@@ -37,6 +37,8 @@ class PidWindowSensor(SensorEntity):
         self._attr_unique_id = f"{entry_id}_{key}"
         self._attr_native_unit_of_measurement = unit
         self._remove_listener = controller.register_listener(self._handle_update)
+        if key in {"cover_position", "pid_output"}:
+            self._attr_suggested_display_precision = 0
         if key in {"cooling_delta", "pid_output"}:
             self._attr_entity_category = EntityCategory.DIAGNOSTIC
         if key in {"current_temp", "outdoor_temp", "cooling_delta", "error"}:

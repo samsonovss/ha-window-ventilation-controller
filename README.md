@@ -102,7 +102,7 @@ Possible values:
 - `temp_sensor_unavailable` — indoor temperature sensor is unavailable
 - `cover_unavailable` — controlled cover entity is unavailable
 - `idle` — no cooling action is currently required
-- `integral_locked` — integral accumulation is temporarily locked to avoid wind-up
+- `integral_locked` — PID output is limited and integral accumulation is temporarily held to avoid wind-up
 - `error` — unexpected controller update error
 
 ## Settings / entities
@@ -122,10 +122,10 @@ Main controls:
 Configuration:
 
 - `Temperature deadband` — default `0.5 °C`, range `0–2 °C`, step `0.1 °C`; set `0` to disable
-- `Proportional band` — Node-RED-style proportional band in °C; smaller means more aggressive
+- `Proportional band` — default `6 °C`; Node-RED-style proportional band in °C; smaller means more aggressive
 - `Integral time` — Node-RED-style integral time in seconds; larger means slower integral action
 - `Derivative time` — Node-RED-style derivative time in seconds; `0` disables derivative action
-- `Cooling delta threshold` — default `8 °C`, range `3–20 °C`, step `0.5 °C`
+- `Cooling delta threshold` — default `3 °C`, range `3–20 °C`, step `0.5 °C`
 - `Cooling delta hysteresis` — default `1 °C`, range `0–5 °C`, step `0.5 °C`
 - `Position change threshold` — default `1%`, range `0–10%`, step `0.5%`
 - `Update interval`
