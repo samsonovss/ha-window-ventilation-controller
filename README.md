@@ -151,8 +151,7 @@ Removed legacy/debug entities:
 3. Install **PID Window Controller**.
 4. Restart Home Assistant.
 5. Go to **Settings → Devices & services → Add integration**.
-6. Select the indoor temperature sensor and the target cover.
-7. Optional: select the outdoor temperature sensor if you want to use `auto` cooling mode.
+6. Select the room sensor, optional outdoor sensor, and target window/door cover.
 
 ### Manual installation
 
