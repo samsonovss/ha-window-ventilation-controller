@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN, DEFAULT_KD, DEFAULT_KI, DEFAULT_KP
 from .controller import PidWindowController
 
-PLATFORMS = ["number", "sensor", "select"]
+PLATFORMS = ["cover", "number", "sensor", "select"]
 
 
 @dataclass
@@ -62,6 +62,7 @@ _ENTITY_CATEGORY_BY_UNIQUE_KEY = {
     "update_interval": EntityCategory.CONFIG,
     "cooling_delta": EntityCategory.DIAGNOSTIC,
     "pid_output": EntityCategory.DIAGNOSTIC,
+    "window": None,
 }
 
 _ENTITY_DOMAIN_BY_UNIQUE_KEY = {
@@ -82,6 +83,7 @@ _ENTITY_DOMAIN_BY_UNIQUE_KEY = {
     "outdoor_temp": "sensor",
     "cover_position": "sensor",
     "pid_output": "sensor",
+    "window": "cover",
 }
 
 _OLD_OPTION_KEYS = (

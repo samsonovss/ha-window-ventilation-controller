@@ -9,6 +9,7 @@ The integration is designed for cooling a room with outside air: it reads indoor
 - UI setup from Home Assistant Devices & services
 - Indoor temperature sensor selection
 - Controlled window/cover entity selection
+- Proxy cover entity with a position slider for manual control
 - Optional outdoor temperature sensor for automatic cooling permission
 - Node-RED-style PID tuning: proportional band, integral time, derivative time
 - Cooling modes: `disabled`, `force`, `auto`
@@ -25,7 +26,8 @@ The integration is designed for cooling a room with outside air: it reads indoor
 The controller is disabled.
 
 - PID does not run
-- window is moved to `Minimum cover position`
+- the integration does not move the window automatically
+- the proxy cover slider can still be used for manual control
 - `Controller status = disabled`
 
 ### `force`
@@ -112,6 +114,7 @@ Home Assistant still exposes tunable values as `number` entities, but they are r
 Main controls:
 
 - `Cooling mode` (`disabled` / `force` / `auto`)
+- `Window` cover entity with a 0-100% position slider
 - `Target temperature`
 - `Temperature error`
 - `Room`

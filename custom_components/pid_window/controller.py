@@ -208,6 +208,15 @@ class PidWindowController:
         self.state.cover_position = cover_position
         self.state.enabled = self._enabled
 
+        if not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED:
+            self._integral = 0.0
+            self._previous_error = None
+            self._last_temp = current_temp
+            self.state.pid_output = float(self.min_position)
+            self.state.status = "disabled"
+            self._notify()
+            return
+
         if current_temp is None:
             self.state.status = "temp_sensor_unavailable"
             self.state.pid_output = float(self.min_position)
@@ -223,16 +232,6 @@ class PidWindowController:
 
         error = current_temp - self.target_temp
         self.state.error = error
-        if not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED:
-            self._integral = 0.0
-            self._previous_error = None
-            self._last_temp = current_temp
-            self.state.pid_output = float(self.min_position)
-            self.state.status = "disabled"
-            await self._set_cover_position(float(self.min_position))
-            self._notify()
-            return
-
         if self.cooling_mode == COOLING_MODE_AUTO:
             if cooling_delta is None:
                 self._cooling_pid_allowed = False
@@ -336,13 +335,17 @@ class PidWindowController:
         await self._set_cover_position(output)
         self._notify()
 
-    async def _set_cover_position(self, position: float) -> None:
+    async def _set_cover_position(self, position: float, *, force: bool = False) -> None:
         if position < self.min_position:
             position = float(self.min_position)
         if position > self.max_position:
             position = float(self.max_position)
 
-        if self._last_sent_position is not None and abs(self._last_sent_position - position) < self.position_change_threshold:
+        if (
+            not force
+            and self._last_sent_position is not None
+            and abs(self._last_sent_position - position) < self.position_change_threshold
+        ):
             return
 
         await self.hass.services.async_call(
@@ -357,6 +360,9 @@ class PidWindowController:
         self._last_sent_position = position
         self.state.cover_position = position
         self._notify()
+
+    async def async_set_cover_position(self, position: float) -> None:
+        await self._set_cover_position(position, force=True)
 
     async def async_set_target_temp(self, target_temp: float) -> None:
         self.target_temp = target_temp

@@ -81,6 +81,9 @@
       "kd": { "name": "Время дифференцирования" },
       "update_interval": { "name": "Интервал обновления" }
     },
+    "cover": {
+      "window": { "name": "Окно" }
+    },
     "sensor": {
       "status": {
         "name": "Статус",

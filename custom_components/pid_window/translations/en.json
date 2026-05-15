@@ -81,6 +81,9 @@
       "kd": { "name": "Derivative time" },
       "update_interval": { "name": "Update interval" }
     },
+    "cover": {
+      "window": { "name": "Window" }
+    },
     "sensor": {
       "status": {
         "name": "Status",
