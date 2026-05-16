@@ -126,7 +126,7 @@
         }
       },
       "cooling_delta": { "name": "Разница с улицей" },
-      "error": { "name": "Разница" },
+      "error": { "name": "Перегрев" },
       "current_temp": { "name": "Комната" },
       "outdoor_temp": { "name": "Улица" },
       "cover_position": { "name": "Окно" },
