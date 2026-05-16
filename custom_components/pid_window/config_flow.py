@@ -18,14 +18,6 @@ from .const import (
 )
 
 
-def _optional_entity_selector(domain: str) -> vol.Any:
-    return vol.Any(
-        None,
-        "",
-        selector.EntitySelector(selector.EntitySelectorConfig(domain=domain)),
-    )
-
-
 def _normalize_options(data: dict) -> dict:
     normalized = dict(data)
     for key in (CONF_OUTDOOR_SENSOR, CONF_AC_CLIMATE_ENTITY):
@@ -34,14 +26,25 @@ def _normalize_options(data: dict) -> dict:
     return normalized
 
 
+def _optional_entity_key(key: str, data: dict) -> vol.Optional:
+    value = data.get(key)
+    if value:
+        return vol.Optional(key, default=value)
+    return vol.Optional(key)
+
+
 def _options_schema(data: dict | None = None) -> dict:
     data = data or {}
     return {
         vol.Required(CONF_TEMP_SENSOR, default=data.get(CONF_TEMP_SENSOR, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor")
         ),
-        vol.Optional(CONF_OUTDOOR_SENSOR, default=data.get(CONF_OUTDOOR_SENSOR, "")): _optional_entity_selector("sensor"),
-        vol.Optional(CONF_AC_CLIMATE_ENTITY, default=data.get(CONF_AC_CLIMATE_ENTITY, "")): _optional_entity_selector("climate"),
+        _optional_entity_key(CONF_OUTDOOR_SENSOR, data): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="sensor")
+        ),
+        _optional_entity_key(CONF_AC_CLIMATE_ENTITY, data): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="climate")
+        ),
         vol.Required(CONF_COVER_ENTITY, default=data.get(CONF_COVER_ENTITY, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="cover")
         ),
