@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity import EntityCategory
 
 from . import RuntimeData
 from .const import DOMAIN
@@ -19,8 +18,7 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities) -> N
 
 
 class PidWindowAcConflictProtectionSwitch(SwitchEntity):
-    _attr_has_entity_name = False
-    _attr_entity_category = EntityCategory.CONFIG
+    _attr_has_entity_name = True
 
     def __init__(self, controller, entry_id: str) -> None:
         self._controller = controller

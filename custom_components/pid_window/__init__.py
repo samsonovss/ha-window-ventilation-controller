@@ -48,7 +48,7 @@ _ENTITY_CATEGORY_BY_UNIQUE_KEY = {
     "target_temp": None,
     "cooling_mode": None,
     "pid_profile": EntityCategory.CONFIG,
-    "ac_conflict_protection": EntityCategory.CONFIG,
+    "ac_conflict_protection": None,
     "current_temp": None,
     "outdoor_temp": None,
     "error": None,
