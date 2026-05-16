@@ -115,7 +115,7 @@
           "disabled": "Выключено",
           "cooling": "Охлаждение",
           "deadband": "Мёртвая зона",
-          "auto_blocked_by_delta": "Заблокировано по разнице",
+          "auto_blocked_by_delta": "Малая разница температур",
           "outdoor_sensor_unavailable": "Нет датчика улицы",
           "temp_sensor_unavailable": "Нет датчика комнаты",
           "cover_unavailable": "Окно недоступно",
