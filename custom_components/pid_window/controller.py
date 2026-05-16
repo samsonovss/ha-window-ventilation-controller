@@ -412,11 +412,16 @@ class PidWindowController:
         if position > self.max_position:
             position = float(self.max_position)
 
-        if (
-            not force
-            and self._last_sent_position is not None
+        actual_position = self._cover_position()
+        position_already_requested = (
+            self._last_sent_position is not None
             and abs(self._last_sent_position - position) < self.position_change_threshold
-        ):
+        )
+        position_already_reached = (
+            actual_position is None
+            or abs(actual_position - position) < self.position_change_threshold
+        )
+        if not force and position_already_requested and position_already_reached:
             return
 
         await self.hass.services.async_call(
