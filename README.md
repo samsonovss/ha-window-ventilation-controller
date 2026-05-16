@@ -9,8 +9,8 @@ The integration is designed for cooling a room with outside air: it reads indoor
 - UI setup from Home Assistant Devices & services
 - Indoor temperature sensor selection
 - Controlled window/cover entity selection
-- Proxy cover entity with a position slider for manual control
 - Optional outdoor temperature sensor for automatic cooling permission
+- Optional AC climate entity selection with conflict protection
 - Node-RED-style PID tuning: proportional band, integral time, derivative time
 - Cooling modes: `disabled`, `force`, `auto`
 - Cooling delta sensor: `current_temp - outdoor_temp`
@@ -27,7 +27,6 @@ The controller is disabled.
 
 - PID does not run
 - window is moved to `Minimum cover position`
-- the proxy cover slider can still be used for manual control
 - `Controller status = disabled`
 
 ### `force`
@@ -100,6 +99,7 @@ Possible values:
 - `cooling` — PID is active and regulating the window
 - `deadband` — temperature is inside the deadband, window is not moved
 - `auto_blocked_by_delta` — auto mode is active, but cooling delta is below the allowed threshold
+- `ac_active_window_closed` — AC protection is active and the window is forced closed
 - `outdoor_sensor_unavailable` — outdoor sensor is unavailable in auto mode
 - `temp_sensor_unavailable` — indoor temperature sensor is unavailable
 - `cover_unavailable` — controlled cover entity is unavailable
@@ -114,7 +114,7 @@ Home Assistant still exposes tunable values as `number` entities, but they are r
 Main controls:
 
 - `Cooling mode` (`disabled` / `force` / `auto`)
-- `Window` cover entity with a 0-100% position slider
+- `AC conflict protection` switch, shown only when a climate entity is selected
 - `Target temperature`
 - `Temperature error`
 - `Room`
@@ -124,6 +124,7 @@ Main controls:
 
 Configuration:
 
+- `AC climate entity` — optional; if selected, AC conflict protection becomes available
 - `PID profile` — applies PID tuning presets:
   - `soft`: proportional band `10 °C`, integral time `5400 s`, derivative time `0 s`, position change threshold `2%`
   - `normal`: proportional band `6 °C`, integral time `3600 s`, derivative time `0 s`, position change threshold `1%`

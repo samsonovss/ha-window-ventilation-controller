@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN, DEFAULT_KD, DEFAULT_KI, DEFAULT_KP
 from .controller import PidWindowController
 
-PLATFORMS = ["cover", "number", "sensor", "select"]
+PLATFORMS = ["number", "sensor", "select", "switch"]
 
 
 @dataclass
@@ -48,6 +48,7 @@ _ENTITY_CATEGORY_BY_UNIQUE_KEY = {
     "target_temp": None,
     "cooling_mode": None,
     "pid_profile": EntityCategory.CONFIG,
+    "ac_conflict_protection": EntityCategory.CONFIG,
     "current_temp": None,
     "outdoor_temp": None,
     "error": None,
@@ -78,6 +79,7 @@ _ENTITY_DOMAIN_BY_UNIQUE_KEY = {
     "update_interval": "number",
     "cooling_mode": "select",
     "pid_profile": "select",
+    "ac_conflict_protection": "switch",
     "status": "sensor",
     "cooling_delta": "sensor",
     "error": "sensor",
@@ -147,7 +149,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate old profile-based PID settings and remove deprecated entities."""
     data = _migrate_pid_options(entry.data, fill_defaults=True)
     options = _migrate_pid_options(entry.options)
-    hass.config_entries.async_update_entry(entry, data=data, options=options, version=7)
+    hass.config_entries.async_update_entry(entry, data=data, options=options, version=8)
 
     registry = er.async_get(hass)
     for old_key in _OLD_ENTITY_UNIQUE_IDS:
@@ -179,6 +181,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await controller.async_start()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = RuntimeData(controller=controller)
+    if controller.ac_climate_entity is None:
+        registry = er.async_get(hass)
+        entity_id = registry.async_get_entity_id("switch", DOMAIN, f"{entry.entry_id}_ac_conflict_protection")
+        if entity_id is not None:
+            registry.async_remove(entity_id)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

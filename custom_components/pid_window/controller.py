@@ -13,6 +13,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
+    CONF_AC_CLIMATE_ENTITY,
+    CONF_AC_CONFLICT_PROTECTION,
     CONF_COOLING_DELTA_HYSTERESIS,
     CONF_COOLING_DELTA_THRESHOLD,
     CONF_COOLING_MODE,
@@ -31,6 +33,7 @@ from .const import (
     CONF_UPDATE_INTERVAL,
     DEFAULT_COOLING_DELTA_HYSTERESIS,
     DEFAULT_COOLING_DELTA_THRESHOLD,
+    DEFAULT_AC_CONFLICT_PROTECTION,
     DEFAULT_COOLING_MODE,
     DEFAULT_KD,
     DEFAULT_KI,
@@ -78,6 +81,13 @@ class PidWindowController:
 
         self.temp_sensor = options.get(CONF_TEMP_SENSOR, data[CONF_TEMP_SENSOR])
         self.cover_entity = options.get(CONF_COVER_ENTITY, data[CONF_COVER_ENTITY])
+        self.ac_climate_entity = options.get(CONF_AC_CLIMATE_ENTITY, data.get(CONF_AC_CLIMATE_ENTITY)) or None
+        self.ac_conflict_protection = bool(
+            options.get(
+                CONF_AC_CONFLICT_PROTECTION,
+                data.get(CONF_AC_CONFLICT_PROTECTION, DEFAULT_AC_CONFLICT_PROTECTION),
+            )
+        )
         self.outdoor_sensor = options.get(CONF_OUTDOOR_SENSOR, data.get(CONF_OUTDOOR_SENSOR)) or None
         self.cooling_mode = str(
             options.get(
@@ -111,6 +121,7 @@ class PidWindowController:
         self.state = ControllerState()
         self._listeners: list[Callable[[], None]] = []
         self._unsub_interval = None
+        self._unsub_ac_listener = None
         self._enabled = True
         self._integral = 0.0
         self._previous_error: float | None = None
@@ -137,7 +148,14 @@ class PidWindowController:
             self._async_tick,
             timedelta(seconds=max(15, self.update_interval)),
         )
+        if self.ac_climate_entity:
+            self._unsub_ac_listener = self.hass.bus.async_listen("state_changed", self._async_ac_state_changed)
         await self._async_tick(None)
+
+    def _async_ac_state_changed(self, event: Event) -> None:
+        if event.data.get("entity_id") != self.ac_climate_entity:
+            return
+        self.hass.async_create_task(self._async_tick(None))
 
     def _async_save_option(self, key: str, value: Any) -> None:
         options = {**self.entry.options, key: value}
@@ -163,6 +181,9 @@ class PidWindowController:
         if self._unsub_interval:
             self._unsub_interval()
             self._unsub_interval = None
+        if self._unsub_ac_listener:
+            self._unsub_ac_listener()
+            self._unsub_ac_listener = None
 
     def register_listener(self, callback_fn: Callable[[], None]) -> Callable[[], None]:
         self._listeners.append(callback_fn)
@@ -208,6 +229,14 @@ class PidWindowController:
             return float(self.min_position)
         return None
 
+    def _ac_is_active(self) -> bool:
+        if not self.ac_climate_entity or not self.ac_conflict_protection:
+            return False
+        state = self.hass.states.get(self.ac_climate_entity)
+        if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE, "none"}:
+            return False
+        return state.state in {"cool", "dry", "heat_cool"}
+
     def _set_enabled_runtime(self, enabled: bool) -> None:
         self._enabled = enabled
         self.state.enabled = enabled
@@ -248,6 +277,17 @@ class PidWindowController:
 
         if not cover_available:
             self.state.status = "cover_unavailable"
+            self._notify()
+            return
+
+        if self._ac_is_active():
+            self._integral = 0.0
+            self._previous_error = None
+            self._last_temp = current_temp
+            self._last_update_tick = None
+            self.state.pid_output = float(self.min_position)
+            self.state.status = "ac_active_window_closed"
+            await self._set_cover_position(float(self.min_position), force=True)
             self._notify()
             return
 
@@ -407,6 +447,12 @@ class PidWindowController:
         self.cooling_mode = mode
         self.profile_mode = mode
         self._async_save_option(CONF_COOLING_MODE, mode)
+        self._notify()
+        await self._async_tick(None)
+
+    async def async_set_ac_conflict_protection(self, enabled: bool) -> None:
+        self.ac_conflict_protection = bool(enabled)
+        self._async_save_option(CONF_AC_CONFLICT_PROTECTION, self.ac_conflict_protection)
         self._notify()
         await self._async_tick(None)
 

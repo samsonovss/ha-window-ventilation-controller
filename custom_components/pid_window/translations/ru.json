@@ -9,6 +9,7 @@
           "temp_sensor": "Комната",
           "cover_entity": "Окно/дверь",
           "outdoor_sensor": "Улица",
+          "ac_climate_entity": "Кондиционер",
           "target_temp": "Целевая температура",
           "kp": "Пропорциональная зона",
           "ki": "Время интегрирования",
@@ -34,6 +35,7 @@
           "temp_sensor": "Комната",
           "cover_entity": "Окно/дверь",
           "outdoor_sensor": "Улица",
+          "ac_climate_entity": "Кондиционер",
           "target_temp": "Целевая температура",
           "kp": "Пропорциональная зона",
           "ki": "Время интегрирования",
@@ -68,6 +70,11 @@
     }
   },
   "entity": {
+    "switch": {
+      "ac_conflict_protection": {
+        "name": "Защита при кондиционере"
+      }
+    },
     "select": {
       "cooling_mode": {
         "name": "Режим",
@@ -114,6 +121,7 @@
           "cover_unavailable": "Окно недоступно",
           "idle": "Ожидание",
           "integral_locked": "Ограничение PID",
+          "ac_active_window_closed": "Окно закрыто: кондиционер",
           "error": "Ошибка"
         }
       },

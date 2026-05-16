@@ -9,6 +9,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_AC_CLIMATE_ENTITY,
     CONF_COVER_ENTITY,
     CONF_OUTDOOR_SENSOR,
     CONF_TEMP_SENSOR,
@@ -26,6 +27,9 @@ def _options_schema(data: dict | None = None) -> dict:
         vol.Optional(CONF_OUTDOOR_SENSOR, default=data.get(CONF_OUTDOOR_SENSOR, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor")
         ),
+        vol.Optional(CONF_AC_CLIMATE_ENTITY, default=data.get(CONF_AC_CLIMATE_ENTITY, "")): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain="climate")
+        ),
         vol.Required(CONF_COVER_ENTITY, default=data.get(CONF_COVER_ENTITY, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="cover")
         ),
@@ -41,7 +45,7 @@ def _config_options_schema(data: dict | None = None) -> vol.Schema:
 
 
 class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 7
+    VERSION = 8
 
     async def async_step_user(self, user_input=None):
         errors = {}

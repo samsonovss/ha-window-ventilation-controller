@@ -9,6 +9,7 @@
           "temp_sensor": "Room",
           "cover_entity": "Window/door",
           "outdoor_sensor": "Outdoor",
+          "ac_climate_entity": "Air conditioner",
           "target_temp": "Target temperature",
           "kp": "Proportional band",
           "ki": "Integral time",
@@ -34,6 +35,7 @@
           "temp_sensor": "Room",
           "cover_entity": "Window/door",
           "outdoor_sensor": "Outdoor",
+          "ac_climate_entity": "Air conditioner",
           "target_temp": "Target temperature",
           "kp": "Proportional band",
           "ki": "Integral time",
@@ -68,6 +70,11 @@
     }
   },
   "entity": {
+    "switch": {
+      "ac_conflict_protection": {
+        "name": "AC conflict protection"
+      }
+    },
     "select": {
       "cooling_mode": {
         "name": "Cooling mode",
@@ -114,6 +121,7 @@
           "cover_unavailable": "Cover unavailable",
           "idle": "Idle",
           "integral_locked": "PID limited",
+          "ac_active_window_closed": "Window closed: AC",
           "error": "Error"
         }
       },
