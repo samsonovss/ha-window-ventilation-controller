@@ -44,6 +44,8 @@ class PidWindowSensor(SensorEntity):
         if key in {"current_temp", "outdoor_temp", "cooling_delta", "error"}:
             self._attr_device_class = SensorDeviceClass.TEMPERATURE
             self._attr_state_class = SensorStateClass.MEASUREMENT
+            if key == "current_temp":
+                self._attr_icon = "mdi:home-thermometer"
         elif key == "cover_position":
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_icon = "mdi:window-open"

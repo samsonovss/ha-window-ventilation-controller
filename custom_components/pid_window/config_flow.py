@@ -18,18 +18,30 @@ from .const import (
 )
 
 
+def _optional_entity_selector(domain: str) -> vol.Any:
+    return vol.Any(
+        None,
+        "",
+        selector.EntitySelector(selector.EntitySelectorConfig(domain=domain)),
+    )
+
+
+def _normalize_options(data: dict) -> dict:
+    normalized = dict(data)
+    for key in (CONF_OUTDOOR_SENSOR, CONF_AC_CLIMATE_ENTITY):
+        if not normalized.get(key):
+            normalized.pop(key, None)
+    return normalized
+
+
 def _options_schema(data: dict | None = None) -> dict:
     data = data or {}
     return {
         vol.Required(CONF_TEMP_SENSOR, default=data.get(CONF_TEMP_SENSOR, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor")
         ),
-        vol.Optional(CONF_OUTDOOR_SENSOR, default=data.get(CONF_OUTDOOR_SENSOR, "")): selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="sensor")
-        ),
-        vol.Optional(CONF_AC_CLIMATE_ENTITY, default=data.get(CONF_AC_CLIMATE_ENTITY, "")): selector.EntitySelector(
-            selector.EntitySelectorConfig(domain="climate")
-        ),
+        vol.Optional(CONF_OUTDOOR_SENSOR, default=data.get(CONF_OUTDOOR_SENSOR, "")): _optional_entity_selector("sensor"),
+        vol.Optional(CONF_AC_CLIMATE_ENTITY, default=data.get(CONF_AC_CLIMATE_ENTITY, "")): _optional_entity_selector("climate"),
         vol.Required(CONF_COVER_ENTITY, default=data.get(CONF_COVER_ENTITY, "")): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="cover")
         ),
@@ -50,7 +62,7 @@ class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         errors = {}
         if user_input is not None:
-            return self.async_create_entry(title=DEFAULT_NAME, data=user_input)
+            return self.async_create_entry(title=DEFAULT_NAME, data=_normalize_options(user_input))
         return self.async_show_form(step_id="user", data_schema=_schema(), errors=errors)
 
     @staticmethod
@@ -62,7 +74,7 @@ class PidWindowConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 class PidWindowOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            return self.async_create_entry(title="", data=_normalize_options(user_input))
         return self.async_show_form(
             step_id="init",
             data_schema=_config_options_schema({**self.config_entry.data, **self.config_entry.options}),
