@@ -178,7 +178,7 @@
         }
       },
       "exhaust_status": {
-        "name": "Fan статус",
+        "name": "Статус Fan",
         "state": {
           "disabled": "Выключено",
           "unavailable": "Недоступна",
