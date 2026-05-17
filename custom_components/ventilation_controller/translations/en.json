@@ -15,7 +15,7 @@
           "kp": "Proportional band",
           "ki": "Integral time",
           "kd": "Derivative time",
-          "cooling_mode": "Cooling mode",
+          "cooling_mode": "Temperature ventilation",
           "cooling_delta_threshold": "Cooling delta threshold",
           "cooling_delta_hysteresis": "Cooling delta hysteresis",
           "temp_deadband": "Temperature deadband",
@@ -42,7 +42,7 @@
           "kp": "Proportional band",
           "ki": "Integral time",
           "kd": "Derivative time",
-          "cooling_mode": "Cooling mode",
+          "cooling_mode": "Temperature ventilation",
           "cooling_delta_threshold": "Cooling delta threshold",
           "cooling_delta_hysteresis": "Cooling delta hysteresis",
           "temp_deadband": "Temperature deadband",
@@ -79,7 +79,7 @@
     },
     "select": {
       "cooling_mode": {
-        "name": "Cooling mode",
+        "name": "Temperature ventilation",
         "state": {
           "disabled": "Disabled",
           "force": "Force",

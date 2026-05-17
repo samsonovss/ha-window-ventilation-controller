@@ -20,7 +20,7 @@ In plain English: this is smart ventilation for Home Assistant. The window opens
 
 - [What It Can Do](#what-it-can-do)
 - [How It Works](#how-it-works)
-- [Cooling Modes](#cooling-modes)
+- [Temperature Ventilation](#temperature-ventilation)
 - [CO₂ Ventilation Assist](#co₂-ventilation-assist)
 - [PID Behavior](#pid-behavior)
 - [Controller Status](#controller-status)
@@ -35,7 +35,7 @@ In plain English: this is smart ventilation for Home Assistant. The window opens
 - Compatible with Drivent actuators and other 0-100% positionable covers
 - Use indoor temperature and a target temperature to calculate the window position
 - Use optional outdoor temperature to decide whether cooling with outside air makes sense
-- Support cooling modes: `disabled`, `force`, and `auto`
+- Support temperature ventilation modes: `disabled`, `force`, and `auto`
 - Avoid opening the window when outdoor air is not useful
 - Use a temperature deadband so the window does not twitch around the target
 - Protect against AC conflicts by closing the window when a selected climate entity is cooling
@@ -58,7 +58,7 @@ For CO₂ control, the integration can apply a temporary minimum window position
 
 If PID already wants `100%`, CO₂ does not override anything. It simply reports that CO₂ ventilation is active while the main temperature controller remains in charge.
 
-## Cooling Modes
+## Temperature Ventilation
 
 ### `disabled`
 
@@ -106,7 +106,7 @@ CO₂ does not send separate commands to the window. It only contributes a minim
 
 CO₂ ventilation is blocked when:
 
-- cooling mode is disabled
+- temperature ventilation is disabled
 - AC conflict protection is active and the AC is cooling
 - `auto` mode says outdoor air is not useful
 - the room is already near or below the target temperature
@@ -124,7 +124,7 @@ The PID calculation follows the same style as `node-red-contrib-pid`:
 
 The main controller status explains the temperature/window decision:
 
-- `disabled` — cooling mode is disabled
+- `disabled` — temperature ventilation is disabled
 - `cooling` — PID is active and regulating the window
 - `deadband` — room temperature is inside the deadband
 - `auto_blocked_by_delta` — outdoor air is not useful enough
@@ -153,7 +153,7 @@ The CO₂ status separately explains the CO₂ side:
 
 Main controls:
 
-- `Cooling mode`: `disabled`, `force`, `auto`
+- `Temperature ventilation`: `disabled`, `force`, `auto`
 - `CO₂ ventilation`: `disabled`, `auto`, shown only when a CO₂ sensor is selected
 - `AC conflict protection`, shown only when an AC climate entity is selected
 - `Target temperature`
