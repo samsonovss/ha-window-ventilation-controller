@@ -1,6 +1,6 @@
 """Constants for Window Ventilation Controller."""
 
-DOMAIN = "pid_window"
+DOMAIN = "window_ventilation"
 CONF_NAME = "name"
 CONF_COOLING_MODE = "cooling_mode"
 CONF_TEMP_SENSOR = "temp_sensor"

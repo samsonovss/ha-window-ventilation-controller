@@ -174,13 +174,7 @@ Diagnostic sensors:
 
 ### Manual Installation
 
-Copy `custom_components/pid_window` to `/config/custom_components/pid_window` and restart Home Assistant.
-
-## Compatibility Note
-
-The repository and visible integration name are now **Window Ventilation Controller**, but the Home Assistant integration domain is still `pid_window`.
-
-That is intentional. Changing the domain would make Home Assistant treat it as a different integration and would break existing installations, entity IDs, and registry data.
+Copy `custom_components/window_ventilation` to `/config/custom_components/window_ventilation` and restart Home Assistant.
 
 ## Notes
 

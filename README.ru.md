@@ -174,13 +174,7 @@ PID-логика похожа на `node-red-contrib-pid`:
 
 ### Ручная Установка
 
-Скопируй `custom_components/pid_window` в `/config/custom_components/pid_window` и перезапусти Home Assistant.
-
-## Важное О Совместимости
-
-Репозиторий и видимое имя теперь называются **Window Ventilation Controller**, но домен интеграции в Home Assistant остаётся `pid_window`.
-
-Это сделано специально. Если поменять домен, Home Assistant воспримет компонент как новую интеграцию, а старые сущности и настройки могут отвалиться. Нам этот цирк не нужен.
+Скопируй `custom_components/window_ventilation` в `/config/custom_components/window_ventilation` и перезапусти Home Assistant.
 
 ## Заметки
 

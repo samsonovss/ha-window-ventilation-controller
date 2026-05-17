@@ -174,7 +174,7 @@ class PidWindowController:
     @property
     def device_info(self) -> DeviceInfo:
         return DeviceInfo(
-            identifiers={("pid_window", self.entry.entry_id)},
+            identifiers={("window_ventilation", self.entry.entry_id)},
             name=self.entry.data.get("name", "Window Ventilation Controller"),
             manufacturer="OpenClaw",
             model="Window Ventilation Controller",
