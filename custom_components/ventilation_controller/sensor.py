@@ -66,9 +66,7 @@ class PidWindowSensor(SensorEntity):
         elif key == "co2_position":
             self._attr_state_class = SensorStateClass.MEASUREMENT
             self._attr_icon = "mdi:window-open-variant"
-        elif key == "exhaust_status":
-            self._attr_icon = "cil:cooker-hood-trapezoid"
-        elif key in {"status", "co2_status"}:
+        elif key in {"status", "co2_status", "exhaust_status"}:
             self._attr_icon = "mdi:information-outline"
 
     async def async_added_to_hass(self) -> None:
