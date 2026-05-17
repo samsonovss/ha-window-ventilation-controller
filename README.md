@@ -1,35 +1,52 @@
 # Window Ventilation Controller
 
-Home Assistant custom integration for smart ventilation through a motorized window/cover.
+[Русская версия](README.ru.md)
 
-The integration is designed for cooling and ventilation with outside air: it reads indoor temperature, optionally reads outdoor temperature, AC state, and CO₂, then moves a `cover` entity between 0–100% to keep the room near the target temperature and improve air quality.
+Window Ventilation Controller is a Home Assistant custom integration for rooms with a motorized window, door, damper, or any other `cover` entity that can be positioned from 0 to 100%.
 
-## Features
+The idea is simple: the integration opens the window only when it is useful.
 
-- UI setup from Home Assistant Devices & services
-- Indoor temperature sensor selection
-- Controlled window/cover entity selection
-- Optional outdoor temperature sensor for automatic cooling permission
-- Optional AC climate entity selection with conflict protection
-- Optional CO₂ sensor with ventilation assist
-- Node-RED-style PID tuning: proportional band, integral time, derivative time
-- Cooling modes: `disabled`, `force`, `auto`
-- Cooling delta sensor: `current_temp - outdoor_temp`
-- Cooling delta threshold with hysteresis
-- Temperature deadband to avoid unnecessary movement near target
-- Position change threshold to avoid tiny cover updates
-- Controller status sensor for debugging/automation
-- CO₂ status sensor for ventilation diagnostics
+It watches the room temperature, optional outdoor temperature, target temperature, optional AC state, and optional CO₂ level. If outdoor air can actually cool the room, the controller can open the window. If the outdoor air is not useful, it keeps the window closed. If the AC is running, it can close the window so you do not cool the street. If CO₂ gets high, it can add a ventilation minimum without fighting the temperature PID.
 
-## Cooling modes
+In plain English: this is smart ventilation for Home Assistant. The window opens when it helps, stays closed when it does not, and still exposes enough diagnostics to understand why.
+
+## What It Can Do
+
+- Control a motorized window, door, damper, or vent through a Home Assistant `cover` entity
+- Use indoor temperature and a target temperature to calculate the window position
+- Use optional outdoor temperature to decide whether cooling with outside air makes sense
+- Support cooling modes: `disabled`, `force`, and `auto`
+- Avoid opening the window when outdoor air is not useful
+- Use a temperature deadband so the window does not twitch around the target
+- Protect against AC conflicts by closing the window when a selected climate entity is cooling
+- Use optional CO₂ ventilation assist for air quality
+- Treat CO₂ as part of the same final window-position calculation, not as a separate automation
+- Show status sensors for temperature control and CO₂ ventilation
+- Expose tuning values as Home Assistant entities
+
+## How It Works
+
+The integration controls one `cover` entity. The cover must support percentage positioning.
+
+For temperature control, it calculates a PID output between your configured minimum and maximum window position. In `auto` mode, it first checks whether the room is warmer than outdoors by enough degrees. If not, the PID is blocked because opening the window would not help.
+
+For CO₂ control, the integration can apply a temporary minimum window position. Example:
+
+- PID wants `10%`
+- CO₂ ventilation wants at least `30%`
+- final window position becomes `max(10, 30) = 30%`
+
+If PID already wants `100%`, CO₂ does not override anything. It simply reports that CO₂ ventilation is active while the main temperature controller remains in charge.
+
+## Cooling Modes
 
 ### `disabled`
 
 The controller is disabled.
 
 - PID does not run
-- window is moved to `Minimum cover position`
-- `Controller status = disabled`
+- window is moved to the minimum position
+- controller status is `disabled`
 
 ### `force`
 
@@ -37,8 +54,7 @@ PID runs using indoor temperature only.
 
 - outdoor temperature is not required
 - cooling delta is not used to block PID
-- common PID tuning values are used
-- `Controller status = cooling` while PID is regulating
+- controller status is `cooling` while PID is regulating
 
 ### `auto`
 
@@ -48,110 +64,102 @@ PID runs only when outside air can cool the room.
 - `Cooling delta = current_temp - outdoor_temp`
 - PID is allowed when `Cooling delta >= Cooling delta threshold`
 - PID is blocked when `Cooling delta <= threshold - hysteresis`
-- between those two values, the previous allowed/blocked state is kept
+- between those values, the previous allowed/blocked state is kept
 
-If the outdoor sensor is unavailable in `auto` mode:
+If the outdoor sensor is unavailable in `auto` mode, PID is blocked and the window is moved to the minimum position.
 
-- `Cooling delta` becomes unavailable
-- PID is blocked
-- window is moved to `Minimum cover position`
-- `Controller status = outdoor_sensor_unavailable`
+## CO₂ Ventilation Assist
 
+CO₂ support is optional. If no CO₂ sensor is selected, CO₂ entities and logic are not created.
 
-## PID behavior
+When a CO₂ sensor is selected, the integration can expose:
+
+- `CO₂` sensor
+- `CO₂ status`
+- `CO₂ ventilation` mode: `disabled` or `auto`
+- CO₂ threshold and hysteresis
+- CO₂ ventilation position
+- CO₂ no-effect detection
+- cold outdoor-air guard settings
+
+CO₂ does not send separate commands to the window. It only contributes a minimum position to the same final calculation used by PID.
+
+CO₂ ventilation is blocked when:
+
+- cooling mode is disabled
+- AC conflict protection is active and the AC is cooling
+- `auto` mode says outdoor air is not useful
+- the room is already near or below the target temperature
+
+## PID Behavior
 
 The PID calculation follows the same style as `node-red-contrib-pid`:
 
-- `Proportional band` is the temperature range that maps the output from 0% to 100%.
-- `Integral time` is in seconds. A larger value makes the integral correction slower.
-- `Derivative time` is in seconds. Set it to `0` to disable derivative action.
-- For cooling, the Node-RED output is inverted, so a room temperature above target opens the window more.
-- There is no extra boost or adaptive multiplier; the cover position comes only from PID output and min/max limits.
+- `PID proportional band` is the temperature range that maps output from 0% to 100%
+- `PID integral time` is in seconds; larger values make integral correction slower
+- `PID derivative time` is in seconds; `0` disables derivative action
+- for cooling, the Node-RED output is inverted, so a room temperature above target opens the window more
 
-## Temperature deadband
+## Controller Status
 
-Default: `0.5 °C`
+The main controller status explains the temperature/window decision:
 
-Set it to `0 °C` to disable deadband.
-
-Logic:
-
-- `current_temp <= target_temp` → window moves to `Minimum cover position`
-- `target_temp < current_temp < target_temp + deadband` → window is not moved and PID integral is not accumulated
-- `current_temp >= target_temp + deadband` → PID runs normally
-- `deadband = 0` → this guard is disabled
-
-This prevents the window from constantly moving around the target temperature.
-
-## Position change threshold
-
-Default: `1%`
-
-The integration sends `cover.set_cover_position` only when the new calculated position differs from the last sent position by at least the configured threshold.
-
-This prevents noisy PID output from spamming tiny 1% cover movements.
-
-## Controller status
-
-The `Controller status` sensor shows the current controller state.
-
-Possible values:
-
-- `disabled` — cooling mode is disabled, window is kept at minimum position
+- `disabled` — cooling mode is disabled
 - `cooling` — PID is active and regulating the window
-- `deadband` — temperature is inside the deadband, window is not moved
-- `auto_blocked_by_delta` — auto mode is active, but cooling delta is below the allowed threshold
-- `ac_active_window_closed` — AC protection is active and the window is forced closed
+- `deadband` — room temperature is inside the deadband
+- `auto_blocked_by_delta` — outdoor air is not useful enough
+- `ac_active_window_closed` — AC protection closed the window
 - `outdoor_sensor_unavailable` — outdoor sensor is unavailable in auto mode
 - `temp_sensor_unavailable` — indoor temperature sensor is unavailable
 - `cover_unavailable` — controlled cover entity is unavailable
-- `idle` — no cooling action is currently required
-- `integral_locked` — PID output is limited and integral accumulation is temporarily held to avoid wind-up
+- `idle` — no cooling action is needed
+- `integral_locked` — PID output is at a limit and integral accumulation is temporarily held
+- `co2_ventilating` — CO₂ raised the final window position above PID
+- `co2_no_effect` — CO₂ ventilation did not reduce CO₂ enough within the configured timeout
 - `error` — unexpected controller update error
 
-## Settings / entities
+The CO₂ status separately explains the CO₂ side:
 
-Home Assistant still exposes tunable values as `number` entities, but they are rendered as sliders where possible.
+- `disabled`
+- `idle`
+- `co2_high`
+- `co2_ventilating`
+- `co2_blocked_by_delta`
+- `co2_blocked_by_ac`
+- `co2_blocked_by_temperature`
+- `co2_no_effect`
+
+## Settings And Entities
 
 Main controls:
 
-- `Cooling mode` (`disabled` / `force` / `auto`)
-- `AC conflict protection` switch, shown only when a climate entity is selected
+- `Cooling mode`: `disabled`, `force`, `auto`
+- `CO₂ ventilation`: `disabled`, `auto`, shown only when a CO₂ sensor is selected
+- `AC conflict protection`, shown only when an AC climate entity is selected
 - `Target temperature`
-- `Temperature error`
 - `Room`
 - `Outdoor temperature`
 - `Window position`
 - `Controller status`
 
-Configuration:
+Configuration and tuning:
 
-- `AC climate entity` — optional; if selected, AC conflict protection becomes available
-- `PID profile` — applies PID tuning presets:
-  - `soft`: proportional band `10 °C`, integral time `5400 s`, derivative time `0 s`, position change threshold `2%`
-  - `normal`: proportional band `6 °C`, integral time `3600 s`, derivative time `0 s`, position change threshold `1%`
-  - `aggressive`: proportional band `4 °C`, integral time `1800 s`, derivative time `0 s`, position change threshold `0.5%`
-  - `manual`: shown when PID tuning values are changed directly
-- `Temperature deadband` — default `0.5 °C`, range `0–2 °C`, step `0.1 °C`; set `0` to disable
-- `Proportional band` — default `6 °C`; Node-RED-style proportional band in °C; smaller means more aggressive
-- `Integral time` — Node-RED-style integral time in seconds; larger means slower integral action
-- `Derivative time` — Node-RED-style derivative time in seconds; `0` disables derivative action
-- `Cooling delta threshold` — default `3 °C`, range `3–20 °C`, step `0.5 °C`
-- `Cooling delta hysteresis` — default `1 °C`, range `0–5 °C`, step `0.5 °C`
-- `Position change threshold` — default `1%`, range `0–10%`, step `0.5%`
-- `Update interval`
+- `PID profile`
+- `PID proportional band`
+- `PID integral time`
+- `PID derivative time`
+- `Temperature deadband`
+- `Outdoor cooling delta threshold`
+- `Outdoor cooling delta hysteresis`
+- `Window movement threshold`
+- `System update interval`
+- CO₂ threshold, hysteresis, ventilation position, timeout, minimum drop, and cold-air guards
 
 Diagnostic sensors:
 
 - `Cooling delta`
 - `PID output`
-
-Removed legacy/debug entities:
-
-- `PID Window Enabled` switch
-- `Temp sensor guard` switch
-- `Enable temperature deadband` switch
-- `Temperature trend` sensor
+- `CO₂ position`
 
 ## Installation
 
@@ -161,22 +169,23 @@ Removed legacy/debug entities:
 2. Add this repository as a custom integration repository.
 3. Install **Window Ventilation Controller**.
 4. Restart Home Assistant.
-5. Go to **Settings → Devices & services → Add integration**.
-6. Select the room sensor, optional outdoor sensor, and target window/door cover.
+5. Go to **Settings -> Devices & services -> Add integration**.
+6. Select the room sensor, optional outdoor sensor, optional AC entity, optional CO₂ sensor, and target cover.
 
-### Manual installation
+### Manual Installation
 
 Copy `custom_components/pid_window` to `/config/custom_components/pid_window` and restart Home Assistant.
 
-## Languages
+## Compatibility Note
 
-The integration includes English and Russian translations for config flow, options flow, entity names, select options, and status values.
+The repository and visible integration name are now **Window Ventilation Controller**, but the Home Assistant integration domain is still `pid_window`.
 
-Translation files are stored in `custom_components/pid_window/translations/en.json` and `custom_components/pid_window/translations/ru.json`, as expected by Home Assistant custom integrations.
+That is intentional. Changing the domain would make Home Assistant treat it as a different integration and would break existing installations, entity IDs, and registry data.
 
 ## Notes
 
-- The controlled window/cover must support 0–100% positioning.
+- The controlled cover must support 0-100% positioning.
 - `force` mode can work without an outdoor sensor.
-- `auto` mode requires an outdoor sensor; if it is unavailable, PID is blocked safely.
-- The integration is focused on cooling by opening a window when outside air is colder than room air.
+- `auto` mode requires an outdoor sensor.
+- AC protection never turns the AC on or off; it only reacts to the selected climate entity state.
+- CO₂ ventilation never controls the window separately; it only participates in the final position calculation.
