@@ -3,7 +3,7 @@
 [Русская версия](README.ru.md)
 
 <p align="center">
-  <img src="assets/banner.png" alt="Window Ventilation Controller" width="100%">
+  <img src="assets/banner-en.png" alt="Window Ventilation Controller" width="100%">
 </p>
 
 Window Ventilation Controller is a Home Assistant custom integration for rooms with a motorized window, door, damper, or any other `cover` entity that can be positioned from 0 to 100%.
