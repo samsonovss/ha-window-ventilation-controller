@@ -43,7 +43,7 @@ In plain English: this is smart ventilation for Home Assistant. The window opens
 - Protect against AC conflicts by closing the window when a selected climate entity is cooling
 - Use optional priority CO₂ ventilation for air quality
 - Let CO₂ open the window to its configured ventilation position independently from temperature ventilation mode and outdoor cooling delta
-- Use an optional exhaust fan or switch as an airflow booster, including forced fan requests during active CO₂ ventilation
+- Use an optional exhaust fan, switch, or group as an airflow booster, including forced fan requests during active CO₂ ventilation
 - Show status sensors for temperature control, CO₂ ventilation, and fan assist
 - Expose tuning values as Home Assistant entities
 
@@ -61,7 +61,7 @@ For CO₂ control, the integration can apply a temporary minimum window position
 
 If PID already wants `100%`, CO₂ does not override anything. It simply reports that CO₂ ventilation is active while the window is already open more than CO₂ requires. If temperature ventilation is disabled or blocked by a low outdoor cooling delta, CO₂ can still open the window to its ventilation position.
 
-An optional exhaust fan can be selected as a `fan` or `switch` entity. It does not replace the window PID. For temperature ventilation, it helps airflow after the window is already open enough and natural ventilation is not producing enough effect. For CO₂ ventilation, it can be forced on while CO₂ ventilation is active.
+An optional exhaust fan can be selected as a `fan`, `switch`, or `group` entity. It does not replace the window PID. For temperature ventilation, it helps airflow after the window is already open enough and natural ventilation is not producing enough effect. For CO₂ ventilation, it can be forced on while CO₂ ventilation is active.
 
 ## Temperature Ventilation
 
@@ -118,7 +118,7 @@ CO₂ ventilation is blocked when:
 
 ## Exhaust Fan Assist
 
-Exhaust fan support is optional. If no fan or switch entity is selected, fan entities and logic are not created.
+Exhaust fan support is optional. If no fan, switch, or group entity is selected, fan entities and logic are not created.
 
 The fan mode has two states:
 
@@ -137,7 +137,7 @@ For CO₂, the fan can turn on when CO₂ ventilation is active. In that case CO
 
 Manual fan control has priority in `auto`: if you turn the fan entity on or off manually, the integration holds that manual state for `Fan manual override timeout` before auto control resumes.
 
-The same physical fan can be selected in several Ventilation Controller entries. Fan requests are shared by entity ID: the fan is turned on when at least one room requests airflow boost, and it is turned off only when no room requests it anymore. If the fan is selected in only one entry, behavior is the same as a single local fan.
+The same physical fan, switch, or group can be selected in several Ventilation Controller entries. Fan requests are shared by entity ID: the selected entity is turned on when at least one room requests airflow boost, and it is turned off only when no room requests it anymore. If the entity is selected in only one entry, behavior is the same as a single local fan.
 
 ## PID Behavior
 
@@ -196,7 +196,7 @@ Main controls:
 
 - `Temperature ventilation`: `disabled`, `force`, `auto`
 - `CO₂ ventilation`: `disabled`, `auto`, shown only when a CO₂ sensor is selected
-- `Fan mode`: `disabled`, `auto`, shown only when a fan or switch entity is selected
+- `Fan mode`: `disabled`, `auto`, shown only when a fan, switch, or group entity is selected
 - `AC conflict protection`, shown only when an AC climate entity is selected
 - `Target temperature`
 - `Room`
@@ -234,7 +234,7 @@ Diagnostic sensors:
 3. Install **Ventilation Controller**.
 4. Restart Home Assistant.
 5. Go to **Settings -> Devices & services -> Add integration**.
-6. Select the room sensor, optional outdoor sensor, optional AC entity, optional CO₂ sensor, optional fan/switch entity, and target cover.
+6. Select the room sensor, optional outdoor sensor, optional AC entity, optional CO₂ sensor, optional fan/switch/group entity, and target cover.
 
 ### Manual Installation
 
@@ -247,8 +247,8 @@ Copy `custom_components/ventilation_controller` to `/config/custom_components/ve
 - `auto` mode requires an outdoor sensor.
 - AC protection never turns the AC on or off; it only reacts to the selected climate entity state.
 - CO₂ is an air-quality priority path: it can open the window to its configured position even when temperature ventilation is disabled or blocked.
-- Fan assist never changes the PID output or window target; it only turns the selected fan/switch on or off.
-- The same fan/switch may be reused by several rooms; requests are coordinated so one room does not turn the fan off while another room still needs it.
+- Fan assist never changes the PID output or window target; it only turns the selected fan/switch/group on or off.
+- The same fan/switch/group may be reused by several rooms; requests are coordinated so one room does not turn the fan off while another room still needs it.
 
 ## Authors
 

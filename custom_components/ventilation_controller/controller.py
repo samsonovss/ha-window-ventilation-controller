@@ -188,12 +188,13 @@ class ExhaustCoordinator:
             return
 
         domain = self.entity_id.split(".", 1)[0]
-        if domain not in {"fan", "switch"}:
+        if domain not in {"fan", "switch", "group"}:
             return
 
+        service_domain = "homeassistant" if domain == "group" else domain
         self.expected_state = desired
         await self.hass.services.async_call(
-            domain,
+            service_domain,
             "turn_on" if desired else "turn_off",
             {"entity_id": self.entity_id},
             blocking=False,

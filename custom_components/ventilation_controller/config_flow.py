@@ -72,7 +72,7 @@ def _options_schema(hass: HomeAssistant, data: dict | None = None) -> dict:
         ),
         vol.Optional(CONF_EXHAUST_ENTITY, default=data.get(CONF_EXHAUST_ENTITY, "")): selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=_entity_options_multi(hass, ("fan", "switch"), data.get(CONF_EXHAUST_ENTITY)),
+                options=_entity_options_multi(hass, ("fan", "switch", "group"), data.get(CONF_EXHAUST_ENTITY)),
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
         ),
