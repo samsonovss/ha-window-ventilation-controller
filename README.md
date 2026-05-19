@@ -12,7 +12,7 @@ It works well for Drivent window actuators, but it is not tied to Drivent. Any H
 
 The idea is simple: the integration opens the window only when it is useful.
 
-It watches the room temperature, optional outdoor temperature, target temperature, optional AC state, optional CO₂ level, and optional exhaust fan. If outdoor air can actually cool the room, the controller can open the window. If the outdoor air is not useful, it keeps the window closed. If the AC is running, it can close the window so you do not cool the street. If CO₂ gets high, it can add a ventilation minimum without fighting the temperature PID. If the window is already open but natural airflow is not enough, it can use an exhaust fan or switch as a booster.
+It watches the room temperature, optional outdoor temperature, target temperature, optional AC state, optional CO₂ level, and optional exhaust fan. If outdoor air can actually cool the room, the controller can open the window. If the outdoor air is not useful, the temperature PID keeps the window closed. If the AC is running, it can close the window so you do not cool the street. If CO₂ gets high, the controller can prioritize air-quality ventilation and open the window even when temperature ventilation is disabled or blocked by a low outdoor cooling delta. If an exhaust fan is selected, it can run during active CO₂ ventilation or as an airflow booster.
 
 In plain English: this is smart ventilation for Home Assistant. The window opens when it helps, stays closed when it does not, and an optional exhaust fan can help move air when the open window alone is not enough. The integration still exposes enough diagnostics to understand why it did what it did.
 
@@ -41,9 +41,9 @@ In plain English: this is smart ventilation for Home Assistant. The window opens
 - Avoid opening the window when outdoor air is not useful
 - Use a temperature deadband so the window does not twitch around the target
 - Protect against AC conflicts by closing the window when a selected climate entity is cooling
-- Use optional CO₂ ventilation assist for air quality
-- Treat CO₂ as part of the same final window-position calculation, not as a separate automation
-- Use an optional exhaust fan or switch as an airflow booster when the window is already open
+- Use optional priority CO₂ ventilation for air quality
+- Let CO₂ open the window to its configured ventilation position independently from temperature ventilation mode and outdoor cooling delta
+- Use an optional exhaust fan or switch as an airflow booster, including forced fan requests during active CO₂ ventilation
 - Show status sensors for temperature control, CO₂ ventilation, and fan assist
 - Expose tuning values as Home Assistant entities
 
@@ -53,15 +53,15 @@ The integration controls one `cover` entity. The cover must support percentage p
 
 For temperature control, it calculates a PID output between your configured minimum and maximum window position. In `auto` mode, it first checks whether the room is warmer than outdoors by enough degrees. If not, the PID is blocked because opening the window would not help.
 
-For CO₂ control, the integration can apply a temporary minimum window position. Example:
+For CO₂ control, the integration can apply a temporary minimum window position. This is an air-quality priority path: it does not depend on `Temperature ventilation` mode and does not require a sufficient outdoor cooling delta. Example:
 
 - PID wants `10%`
 - CO₂ ventilation wants at least `30%`
 - final window position becomes `max(10, 30) = 30%`
 
-If PID already wants `100%`, CO₂ does not override anything. It simply reports that CO₂ ventilation is active while the main temperature controller remains in charge.
+If PID already wants `100%`, CO₂ does not override anything. It simply reports that CO₂ ventilation is active while the window is already open more than CO₂ requires. If temperature ventilation is disabled or blocked by a low outdoor cooling delta, CO₂ can still open the window to its ventilation position.
 
-An optional exhaust fan can be selected as a `fan` or `switch` entity. It does not replace the window PID. It only helps airflow after the window is already open enough and natural ventilation is not producing enough effect.
+An optional exhaust fan can be selected as a `fan` or `switch` entity. It does not replace the window PID. For temperature ventilation, it helps airflow after the window is already open enough and natural ventilation is not producing enough effect. For CO₂ ventilation, it can be forced on while CO₂ ventilation is active.
 
 ## Temperature Ventilation
 
@@ -72,6 +72,8 @@ The controller is disabled.
 - PID does not run
 - window is moved to the minimum position
 - controller status is `disabled`
+
+If `CO₂ ventilation` is enabled and CO₂ is above the threshold, the CO₂ path can still open the window to its ventilation position.
 
 ### `force`
 
@@ -107,13 +109,11 @@ When a CO₂ sensor is selected, the integration can expose:
 - CO₂ no-effect detection
 - cold outdoor-air guard settings
 
-CO₂ does not send separate commands to the window. It only contributes a minimum position to the same final calculation used by PID.
+CO₂ contributes a minimum window position and can run even when the temperature PID is disabled or blocked by a low outdoor cooling delta. If the window is already manually open farther than the CO₂ position, CO₂ does not close it back down.
 
 CO₂ ventilation is blocked when:
 
-- temperature ventilation is disabled
 - AC conflict protection is active and the AC is cooling
-- `auto` mode says outdoor air is not useful
 - the room is already near or below the target temperature
 
 ## Exhaust Fan Assist
@@ -133,7 +133,7 @@ In `auto`, the fan can turn on for temperature only when:
 - AC conflict protection is not blocking ventilation
 - the room temperature has not dropped enough during `Fan no cooling timeout`
 
-For CO₂, the fan can turn on when CO₂ ventilation is active and the window is already open at or above the fan minimum window position.
+For CO₂, the fan can turn on when CO₂ ventilation is active. In that case CO₂ takes priority over the normal fan minimum-window-position check.
 
 Manual fan control has priority in `auto`: if you turn the fan entity on or off manually, the integration holds that manual state for `Fan manual override timeout` before auto control resumes.
 
@@ -162,7 +162,7 @@ The main controller status explains the temperature/window decision:
 - `cover_unavailable` — controlled cover entity is unavailable
 - `idle` — no cooling action is needed
 - `integral_locked` — PID output is at a limit and integral accumulation is temporarily held
-- `co2_ventilating` — CO₂ raised the final window position above PID
+- `co2_ventilating` — CO₂ opened or is holding the window at its ventilation position
 - `co2_no_effect` — CO₂ ventilation did not reduce CO₂ enough within the configured timeout
 - `error` — unexpected controller update error
 
@@ -172,7 +172,6 @@ The CO₂ status separately explains the CO₂ side:
 - `idle`
 - `co2_high`
 - `co2_ventilating`
-- `co2_blocked_by_delta`
 - `co2_blocked_by_ac`
 - `co2_blocked_by_temperature`
 - `co2_no_effect`
@@ -247,7 +246,7 @@ Copy `custom_components/ventilation_controller` to `/config/custom_components/ve
 - `force` mode can work without an outdoor sensor.
 - `auto` mode requires an outdoor sensor.
 - AC protection never turns the AC on or off; it only reacts to the selected climate entity state.
-- CO₂ ventilation never controls the window separately; it only participates in the final position calculation.
+- CO₂ is an air-quality priority path: it can open the window to its configured position even when temperature ventilation is disabled or blocked.
 - Fan assist never changes the PID output or window target; it only turns the selected fan/switch on or off.
 - The same fan/switch may be reused by several rooms; requests are coordinated so one room does not turn the fan off while another room still needs it.
 

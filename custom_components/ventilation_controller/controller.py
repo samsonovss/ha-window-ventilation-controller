@@ -530,7 +530,10 @@ class PidWindowController:
             return
         self._exhaust_cooldown_until = None
 
-        if window_position is None or window_position < self.exhaust_min_window_position:
+        co2_needs_boost = bool(co2_active)
+        if not co2_needs_boost and (
+            window_position is None or window_position < self.exhaust_min_window_position
+        ):
             self.state.exhaust_status = "blocked_by_window"
             self._reset_exhaust_no_cooling()
             await coordinator.async_request(self, False)
@@ -562,8 +565,6 @@ class PidWindowController:
             temperature_allowed
             and self._track_exhaust_no_cooling(current_temp, window_position)
         )
-        co2_needs_boost = bool(co2_active)
-
         if temperature_needs_boost or co2_needs_boost:
             self.state.exhaust_status = "co2_boost" if co2_needs_boost else "temperature_boost"
             if not is_on:
@@ -634,17 +635,6 @@ class PidWindowController:
             self.state.co2_status = "co2_blocked_by_ac"
             self._reset_co2_no_effect()
             return None
-        if self.cooling_mode == COOLING_MODE_DISABLED:
-            self.state.co2_status = "disabled"
-            self._reset_co2_no_effect()
-            return None
-        if self.cooling_mode == COOLING_MODE_AUTO:
-            delta_allowed = cooling_delta is not None and cooling_delta >= self.cooling_delta_threshold
-            if not delta_allowed:
-                self.state.co2_status = "co2_blocked_by_delta"
-                self._reset_co2_no_effect()
-                return None
-
         position = self.co2_ventilation_position
         if outdoor_temp is not None and outdoor_temp <= self.co2_cold_outdoor_threshold:
             position = min(position, self.co2_cold_max_position)
@@ -652,6 +642,35 @@ class PidWindowController:
         self.state.co2_position = position
         self.state.co2_status = "co2_ventilating"
         return position
+
+    async def _async_apply_co2_ventilation(
+        self,
+        *,
+        co2: float | None,
+        current_temp: float,
+        cooling_delta: float | None,
+        cover_position: float | None,
+        co2_min_position: float,
+        pid_output: float | None = None,
+    ) -> None:
+        self._integral = 0.0
+        self._previous_error = None
+        self._last_temp = current_temp
+        current_position = float(cover_position if cover_position is not None else self.min_position)
+        target_position = max(current_position, co2_min_position)
+        self.state.pid_output = pid_output
+        self.state.status = "co2_ventilating"
+        if self._track_co2_no_effect(co2, target_position):
+            self.state.status = "co2_no_effect"
+            self.state.co2_status = "co2_no_effect"
+        await self._set_cover_position(target_position)
+        await self._async_update_exhaust(
+            current_temp=current_temp,
+            cooling_delta=cooling_delta,
+            window_position=target_position,
+            co2_active=self.state.co2_status in {"co2_ventilating", "co2_no_effect"},
+        )
+        self._notify()
 
     def _set_enabled_runtime(self, enabled: bool) -> None:
         self._enabled = enabled
@@ -740,6 +759,18 @@ class PidWindowController:
             return
 
         error = self.state.error
+        if co2_min_position is not None and (
+            not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED
+        ):
+            await self._async_apply_co2_ventilation(
+                co2=co2,
+                current_temp=current_temp,
+                cooling_delta=cooling_delta,
+                cover_position=cover_position,
+                co2_min_position=co2_min_position,
+            )
+            return
+
         if not self._enabled or self.cooling_mode == COOLING_MODE_DISABLED:
             self._integral = 0.0
             self._previous_error = None
@@ -756,7 +787,7 @@ class PidWindowController:
             return
 
         if self.cooling_mode == COOLING_MODE_AUTO:
-            if cooling_delta is None:
+            if cooling_delta is None and co2_min_position is None:
                 self._cooling_pid_allowed = False
                 self._integral = 0.0
                 self._previous_error = None
@@ -773,12 +804,24 @@ class PidWindowController:
                 self._notify()
                 return
 
-            if cooling_delta >= self.cooling_delta_threshold:
+            if cooling_delta is None:
+                self._cooling_pid_allowed = False
+            elif cooling_delta >= self.cooling_delta_threshold:
                 self._cooling_pid_allowed = True
             elif cooling_delta <= self.cooling_delta_threshold - self.cooling_delta_hysteresis:
                 self._cooling_pid_allowed = False
 
-            if not self._cooling_pid_allowed:
+            if not self._cooling_pid_allowed and co2_min_position is not None:
+                await self._async_apply_co2_ventilation(
+                    co2=co2,
+                    current_temp=current_temp,
+                    cooling_delta=cooling_delta,
+                    cover_position=cover_position,
+                    co2_min_position=co2_min_position,
+                )
+                return
+
+            if not self._cooling_pid_allowed and co2_min_position is None:
                 self._integral = 0.0
                 self._previous_error = None
                 self._last_temp = current_temp
